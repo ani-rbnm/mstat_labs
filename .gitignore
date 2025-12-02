@@ -52,3 +52,6 @@ rsconnect/
 renv/
 *renv*
 .Rprofile
+*files/
+*.html
+*.pdf

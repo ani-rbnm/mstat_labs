@@ -141,6 +141,78 @@ resp <- mh_pois_lognorm(y = saints_goals,
   proposal_sd = 0.2,
     eta_init = mean(saints_goals)
   )
+resp$theta
 mean( resp$theta )
 resp$accept_rate
 ```
+From solution
+
+
+```{r}
+set.seed(42)
+
+post <- function(theta, data = saints_goals) {
+
+ likelihood <- sapply(theta, \(x) prod(dpois(data, x)))
+
+ likelihood * dnorm(log(theta), 1, 0.5)
+}
+
+ratio <- function(theta1, theta2) post(theta1) / post(theta2)
+metropolis <- function(start_val = 1, n = 1000, sd = 0.2) {
+
+ theta <- c(start_val, rep(0, n))
+
+ accept <- 0
+
+ for(i in 2:(n + 1)) {
+
+ prop <- exp(rnorm(1, log(theta[i - 1]), sd))
+
+ if(ratio(prop, theta[i - 1]) > runif(1)) {
+
+  theta[i] <- prop
+
+  accept <- accept + 1
+
+ } else theta[i] <- theta[i - 1]
+
+ }
+
+ return(list(sample = theta[2:(n + 1)], accept_rate = accept / n))
+
+}
+
+thetahat <- mean(saints_goals)
+
+theta <- metropolis(start_val = thetahat, n = 100)
+theta$sample
+mean(theta$sample)
+```
+
+Dear Professor,
+
+Many thanks for posting the quiz solutions. I have a couple of queries:
+
+1. In the following line, it seems to me that we are only partially converting prior $\theta$ to the log scale, 
+and it seems the jacobian adjustment of $1/\theta$ is missing.
+
+ `likelihood * dnorm(log(theta), 1, 0.5)`
+
+2. Following on from the previous point, since `theta1` and `theta2` are not on the log scale, can we assume that the proposal is 
+truly symmetric? Therefore, should we be calculating the acceptance ratio in the following way without accounting for the proposal ratios?
+
+`ratio <- function(theta1, theta2) post(theta1) / post(theta2)`
+
+My understanding is that Acceptance ratio, `r` should be,
+$$
+r = \frac {\exp {\left[ \eta^*\sum x_i -n e^{\eta^*}  -(\eta^* - \mu)^2/2 \sigma^2 \right]}} {\exp {\left[ \eta^{t-1}\sum x_i -n e^{\eta^{t-1}}  -(\eta^{t-1} - \mu)^2/2 \sigma^2 \right]}} 
+$$
+where $\eta = \log{\theta}$
+
+This uses lognormal distribution for the prior $\theta$ and then transforms the whole posterior from $\theta$ to $\eta$. I proceeded in this manner sampling from gaussian proposal,
+getting a log posterior vector which I then exponentiated at the very end to get the true posterior.
+
+Please correct me if I am wrong.
+
+
