@@ -1,0 +1,234 @@
+---
+title: CW2
+date: 2025/12/01
+format: html
+---
+
+#### 1. Linear regression with R
+
+* Loading the data
+
+
+```{r}
+data.reg <- read.table("session1.dat", header = T)
+str(data.reg)
+```
+* converting data into factors
+
+```{r}
+data.reg$school <- factor(data.reg$school,levels = c(1,2,3))
+data.reg$sex <- factor(data.reg$sex, levels = c(0,1), labels = c("Boy", "Girl"))
+data.reg$eg <- factor(data.reg$eg, levels = c(0,1), labels = c("White", "Afr-Car"))
+
+str(data.reg)
+head(data.reg)
+nrow(data.reg)
+```
+
+* Model1: fitting an empty model
+
+
+```{r}
+model.empty <- lm (mathatt2 ~ 1, data = data.reg)
+summary(model.empty)
+confint(model.empty)
+# X %*% solve(t(X) %*% X) %*% t(X) %*% data.reg$mathatt2
+```
+* Task 1
+Ans: estimated average score = 28.769
+95% conf interval average score: [25.2942, 32.24426]
+
+* Model2: `curric` as explanatory variable.
+
+
+```{r}
+
+model.curric <- lm(mathatt2 ~ curric, data = data.reg)
+anova(model.curric)
+summary(model.curric)
+```
+* Task 2
+a) mathatt2 = 13.093 + 0.08301 $\times$ curric
+b) std errors of intercept and slope = 3.2349 and 0.01566
+c) Yes it does as the null $H_0: \beta1 = 0$ is rejected.
+d) variation explained through R^2
+e) 
+
+* 1.2 Plotting the regression line and analysing the residuals
+
+
+```{r}
+plot(mathatt2 ~ curric, data = data.reg)
+abline(model.curric, col = 'red')
+```
+* Residual analysis of `model.curric`
+
+
+```{r}
+model.curric$fitted
+resid(model.curric)
+rstandard(model.curric)
+```
+* comparing standardised vs studentised residuals
+
+
+```{r}
+library(MASS)
+studres(model.curric)
+plot(rstandard(model.curric), studres(model.curric))
+abline(0,1)
+```
+* residual plot
+
+-- QQ plot
+
+```{r}
+qqnorm(rstandard(model.curric))
+qqline(rstandard(model.curric))
+```
+-- standardised vs fitted
+
+```{r}
+plot(rstandard(model.curric) ~ model.curric$fitted)
+abline(h=0)
+abline(h = 1.96)
+abline(h = -1.96, lwd = 2)
+```
+```{r}
+plot(resid(model.curric) ~ model.curric$fitted)
+abline(h=0)
+```
+
+* plots including cook's distance
+
+
+```{r}
+plot(model.curric)
+```
+
+* *Conclusion*: Reasonable model
+
+* 1.3 Adding further variables to the model
+
+
+```{r}
+model.mult <- lm (mathatt2 ~ curric + mathatt1, data = data.reg)
+anova(model.mult)
+summary(model.mult)
+```
+```{r}
+model.mult$fitted
+resid(model.mult)
+rstandard(model.mult)
+```
+* comparing standardised vs studentised residuals
+
+
+-- QQ plot
+
+```{r}
+qqnorm(rstandard(model.mult))
+qqline(rstandard(model.mult))
+```
+-- standardised vs fitted
+
+```{r}
+plot(rstandard(model.mult) ~ model.mult$fitted)
+abline(h=0)
+abline(h = 1.96)
+abline(h = -1.96, lwd = 2)
+```
+```{r}
+plot(resid(model.mult) ~ model.mult$fitted)
+abline(h=0)
+```
+
+* plots including cook's distance
+
+
+```{r}
+plot(model.mult)
+```
+
+Comparing AIC and BIC values:
+
+
+```{r}
+AIC(model.curric, model.mult)
+BIC(model.curric, model.mult)
+anova(model.curric, model.mult)
+
+```
+
+* 1.4 adding quadratic term to the model
+
+
+```{r}
+data.reg$math.quadr <- data.reg$mathatt1^2
+model.quadr <- lm(mathatt2 ~ curric + mathatt1 + math.quadr, data = data.reg)
+summary(model.quadr)
+```
+-- QQ plot
+
+```{r}
+qqnorm(rstandard(model.quadr))
+qqline(rstandard(model.quadr))
+```
+-- standardised vs fitted
+
+```{r}
+plot(rstandard(model.quadr) ~ model.quadr$fitted)
+abline(h=0)
+abline(h = 1.96)
+abline(h = -1.96, lwd = 2)
+```
+```{r}
+plot(resid(model.quadr) ~ model.quadr$fitted)
+abline(h=0)
+```
+
+* plots including cook's distance
+
+
+```{r}
+plot(model.quadr)
+```
+
+Comparing AIC and BIC values:
+
+
+```{r}
+AIC(model.quadr, model.mult)
+BIC(model.quadr, model.mult)
+anova( model.mult,model.quadr)
+
+```
+
+Model 5: categorical variable `sex` as the only explanatory variable
+
+
+```{r}
+model.gender <- lm(mathatt2 ~ sex, data = data.reg)
+summary(model.gender)
+```
+model 6: adding `sex` to model 3
+
+
+```{r}
+model.6 <- lm(mathatt2 ~ curric + mathatt1 + sex, data = data.reg)
+summary(model.6)
+```
+
+model 7: interaction between `sex` and `mathatt1`
+
+```{r}
+model.int <- lm(mathatt2 ~ curric + mathatt1 + sex * mathatt1, data = data.reg)
+summary(model.int)
+anova(model.6, model.int)
+```
+
+```{r}
+AIC(model.6, model.int)
+BIC(model.6, model.int)
+
+
