@@ -1,0 +1,76 @@
+---
+title: cw3 Part a
+date: 2025/12/04
+format: html
+---
+
+
+```{r}
+
+goals <- c(992,1001,1000,1012,975,944,931,1002,942,1053,1063,1066,1063,1052,975,
+1026,1064,1018)
+
+sum(goals)
+```
+percent goals
+
+```{r}
+percent.goals <- goals / sum(goals) * 100
+round( sum(round(percent.goals, digits = 1)) )
+```
+* creating prop table
+
+
+```{r}
+table(goals)
+round( prop.table(goals) , 4)
+```
+* plotting frequency distribution
+ - goals vs season
+```{r}
+season <- 0:17
+expected.goals <- mean(goals)
+plot(goals ~ season)
+abline(h = expected.goals, lty = 2)
+```
+- percent goals vs season
+
+```{r}
+plot(percent.goals ~ season)
+abline(h = 100/18 , lty = 2)
+
+```
+
+* goodness of fit statistic
+```{r}
+X2 <- sum(( goals - expected.goals ) ^ 2 / expected.goals)
+X2
+```
+* getting p value
+
+```{r}
+1 - pchisq(X2, 17)
+```
+* same thing done by the chisq test
+
+```{r}
+chisq.test(goals)
+```
+Thus we can reject equiprobability model
+
+* plotting the residuals
+
+```{r}
+res.goals <- goals - expected.goals
+std.goals <- res.goals/sqrt(var(res.goals))
+
+plot(season, res.goals)
+abline(h=0)
+plot(season, std.goals)
+abline(h=0)
+plot(season, adj.goals)
+abline(h=0)
+
+
+```
+
