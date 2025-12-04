@@ -1,0 +1,110 @@
+---
+title: CW3c
+date: 2025/12/4
+format: html
+---
+
+
+```{r}
+data <- read.table("logistic.dat", header = T, 
+colClasses = c(rep("factor", 3), "numeric")
+  )
+head(data)
+str(data)
+
+levels(data$hgsex) <- c("Male", "Female")
+levels(data$hlstat) <- c("Excellent", "Good", "Average", "Poor", "Very Poor")
+levels(data$vs2gp) <- c("<3", "3+")
+str(data)
+head(data)
+```
+* building the model
+
+
+```{r}
+library(VGAM)
+levels(data$hlstat)
+mult <- vglm(hlstat ~ hgsex, data = data, family = multinomial(refLevel = 1))
+summary(mult)
+levels(data$hlstat)
+
+```
+* fitted values
+
+
+```{r}
+newdata <- expand.grid(levels(data$hgsex))
+colnames(newdata) <- "hgsex"
+cbind(newdata, predict(mult, newdata, type = "link"))
+cbind(newdata, predict(mult, newdata, type = "response"))
+
+```
+
+* fitting mult.linc
+```{r}
+mult.linc <- vglm( hlstat ~ hgsex + linc, data = data, family = multinomial(refLevel = 1) )
+summary(mult.linc)
+anova(mult, mult.linc, type = 1)
+```
+
+#### cumulative log odds
+
+* model fitting
+
+
+```{r}
+ord <- vglm(as.ordered(hlstat) ~ hgsex, data = data, family = cumulative(parallel = T))
+summary(ord)
+levels(data$hlstat)
+```
+* computing the fitted probability
+
+
+```{r}
+newdata <- expand.grid( levels(data$hgsex) ) # New dataset with all
+# possible covariate patterns
+colnames(newdata) <- c("hgsex")
+cbind( newdata, predict(ord,newdata, type = "response") )
+```
+* Likelihood ratio test (LRT)
+
+* without assumin proportional odds
+
+```{r}
+ord.np <- vglm(as.ordered(hlstat) ~ hgsex, data = data, family = cumulative(parallel = F))
+summary(ord.np)
+anova(ord, ord.np, type = 1)
+```
+
+
+```{r}
+newdata <- expand.grid( levels(data$hgsex) ) # New dataset with all
+# possible covariate patterns
+colnames(newdata) <- c("hgsex")
+cbind( newdata, predict(ord.np,newdata, type = "response") )
+```
+* proportional for sex but not for income
+
+
+```{rust}
+ord2 <- vglm( as.ordered(hlstat) ~ hgsex + linc,
+family = cumulative(parallel = F ~ linc) , data = data)
+summary(ord2)
+```
+
+* tabular form
+
+
+```{r}
+## Entering the data in tabular form ##
+temp <- data.frame( ses = c(0,1) )
+temp$well <- c(4,8)
+temp$mild <- c(4,8)
+temp$moderate <- c(5,2)
+temp$impaired <- c(5,3)
+temp
+ord3 <- vglm( cbind(well, mild, moderate, impaired) ~ ses,
+family = cumulative(parallel = T), data = temp )
+summary(ord3)
+```
+

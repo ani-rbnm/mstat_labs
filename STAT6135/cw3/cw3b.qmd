@@ -1,0 +1,190 @@
+---
+title: CW - part 2
+date: 2025/12/04
+format: html
+---
+
+* reading the data
+
+
+```{r}
+data <- read.table("logistic.dat", header = T)
+
+data$hgsex <- factor(data$hgsex, levels = c(0,1), labels = c("male", "female"))
+data$hlstat <- factor(data$hlstat, levels = c(1, 2, 3, 4, 5), labels = c("excellent", "good", "average", "poor", "very poor"))
+data$vs2gp <- factor(data$vs2gp, levels = c(0,1), labels = c("<3", "3+"))
+
+head(data)
+str(data)
+table(data$vs2gp)
+```
+
+```{r}
+data <- read.table("logistic.dat", header = T,
+colClasses = c( rep("factor", 3), "numeric") )
+# colClasses indicates the type of the variable
+attach(data)
+head(data)
+
+levels(hgsex) <- c("male", "female")
+levels(hlstat) <- c("excellent", "good", "average", "poor", "very poor")
+levels(vs2gp) <- c("<3", "3+")
+```
+* fitting an *empty* model
+
+
+```{r}
+mod0 <- glm(vs2gp ~ 1, data = data, family = "binomial")
+summary(mod0)
+logit_pi <- coef(mod0)[1]
+pi_hat <- exp(logit_pi)/(1 + exp(logit_pi))
+pi_hat
+fitted(mod0)
+```
+* fitting model with `hgsex`
+
+
+```{r}
+mod1 <- glm(vs2gp ~ hgsex, data = data, family = "binomial")
+summary(mod1)
+1- pchisq(240.5, 1)
+```
+
+* fitting model with `hlstat`
+
+
+```{r}
+mod2 <- glm(vs2gp ~ hgsex + hlstat, data = data, family = "binomial")
+summary(mod2)
+anova(mod1, mod2, test = "LRT")
+```
+```{r}
+head(fitted(mod2))
+head(predict(mod2, type = "response"))
+head(predict(mod2, type = "link"))
+head(data)
+```
+
+```{r}
+mod3 <- glm(vs2gp ~ hgsex + hlstat+linc, data = data, family="binomial")
+summary(mod3)
+```
+* Diagnostics
+
+
+```{r}
+head(fitted(mod3))
+head(predict(mod3, type = "response"))
+head(predict(mod3, type = "link"))
+head(data)
+```
+
+* residuals
+
+
+```{r}
+ r.stand <- rstandard(mod3) # standardized residuals
+ r.pearson <- residuals(mod3 , type = c( "pearson" ))
+ r.deviance <- residuals(mod3 , type = c( "deviance" ))
+
+ plot(predict(mod3), rstandard(mod3))
+ abline(h = -1.96, lty =3, col = 2)
+abline(h = 1.96, lty = 3, col = 2)
+```
+* R^2 measures 
+
+
+```{r}
+library(pscl)
+# McFadden
+( 1 - logLik(mod3)/ logLik(mod0) )[1]
+# cox-snell(r2ML)
+n <- length(data$vs2gp)
+rcs <- 1 - exp(logLik(mod0) * 2/n - logLik(mod3) * (2/n))
+rcs[1]
+# nagelkerke
+( rcs * ( 1 / (1 - exp( logLik(mod0) * (2/n)) ) ) )[1]
+pR2(mod3)
+```
+* predictive power of the model
+
+```{r}
+YhatP <- fitted(mod3)
+boxplot( YhatP ~ vs2gp, data = data, ylab = "Fitted probability", xlab = "y", ylim = c(0,1) )
+abline(h = 0.5, lty = 2, col = 2)
+```
+# classication table using 0.5 as cut-f ##
+
+```{r}
+c <- 0.5
+Yfac <- cut(YhatP, breaks = c(0, c, 1), labels = c(0, 1))
+aa <- as.matrix(table(Yfac, data$vs2gp))
+(aa[1,1]+aa[2,2])/sum(aa) # Correct classification rate
+aa[2,2]/sum(aa[,2]) # Sensitivity for c = 0.5
+aa[1,1]/sum(aa[,1]) # Specificity for c = 0.5
+```
+### Roc Curve
+
+
+```{r}
+library(ROCR)
+pred <- data.frame(data$vs2gp, YhatP)
+colnames(pred) <- c("vs2gp", "YhatP")
+pred <- pred[order(data$vs2gp),]
+pred <- prediction(pred$YhatP, pred$vs2gp)
+perf <- performance(pred, "tpr", "fpr")
+plot(perf); abline(0, 1)
+performance(pred, "auc")@y.values # Area under the curve
+```
+
+* some analysis data
+
+
+```{r}
+table(vs2gp)
+prop.table( table(vs2gp) )
+table(hgsex, vs2gp)
+prop.table( table(hgsex, vs2gp), 1 )
+# Row percentages
+table(hlstat, vs2gp)
+prop.table( table(hlstat, vs2gp), 2 ) # Column percentages
+```
+* producing stacked barplot
+
+```{r}
+tab <- prop.table( table(hgsex, vs2gp), 1 )
+par( mfrow = c(1, 1), mar = c(5, 5, 5, 5) ) # Set the margins for the plot window
+barplot( t(tab), legend.text=T, args.legend = list( x="topright",
+inset=c(-0.15, 0) ) )
+```
+
+* some plots
+
+
+```{r}
+## hlstat ##
+tab <- prop.table( table(hlstat, vs2gp), 1 )
+plot( tab[,2], xlab = "hlstat", ylab = "proportion", col = 4, pch = 20,
+ylim = c(0, 1), xlim = c(0, 6) )
+```
+```{r}
+## linc ##
+groups <- 20
+qq <- quantile( data$linc, seq(0, 1, 1/groups) )
+cat.inc <- cut( data$linc, breaks = qq, labels = c(1 : groups) )
+# Recoding linc into groups
+aa <- prop.table( table(cat.inc, data$vs2gp), 1 )
+# Calculating the proportions of y = 1 for each group
+
+mid.point <- qq[ -(groups+1) ] + (qq[-1] - qq[ -(groups+1) ])/2
+plot(mid.point, aa[,2], xlab = "linc", ylab = "proportion", col = 4, pch = 20)
+# Look at the vertical axis
+# The plot seems linear because our proportions vary on a small portion
+# of the interval (0,1)
+```
+
+```{r}
+logitp <- log(aa[,2]/(aa[,1]))
+plot(mid.point, logitp, xlab = "linc", ylab = "logit", col = 4, pch = 20)
+abline( lm(logitp ~ mid.point) )
+```
