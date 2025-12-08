@@ -1,0 +1,29 @@
+---
+title: MATH6192 - Week5
+date: 2026/12/08
+format: html
+---
+
+* Initial preparation
+
+
+```{r}
+library(ggplot2)
+library(readr)
+set.seed(142)
+
+boot_df <- read.csv("boot_data.csv", header = T)
+head(boot_df)
+```
+
+##### Q1. Creating function to estimate `w`
+
+
+```{r}
+get_w_tilde_hat <- function(data) {
+  w_tilde_hat <- ( var(data$x) - cov(data$x, data$y)) /
+  (var(data$x) + var(data$y) - 2 * cov(data$x, data$y))
+
+  w_tilde_hat
+} 
+```
