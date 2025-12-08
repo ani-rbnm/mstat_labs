@@ -27,3 +27,11 @@ get_w_tilde_hat <- function(data) {
   w_tilde_hat
 } 
 ```
+##### Q2. Function to get a single bootstap sample
+
+
+```{r}
+get_BS_sample <- function(x) {
+  x[sample(seq_along(x), length(x), replace = T)]
+} 
+```
