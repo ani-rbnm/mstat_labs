@@ -21,7 +21,7 @@ head(boot_df)
 
 ```{r}
 get_wth <- function(data) {
-  w_tilde_hat <- ( var(data$x) - cov(data$x, data$y)) /
+  w_tilde_hat <- ( var(data$y) - cov(data$x, data$y)) /
   (var(data$x) + var(data$y) - 2 * cov(data$x, data$y))
 
   w_tilde_hat
@@ -33,7 +33,7 @@ get_wth <- function(data) {
 ```{r}
 get_BS_sample <- function(data) {
   n <- nrow(data)
-  data[sample(1:n, n, replace = T),]
+  data[sample(seq_len(n), n, replace = T),]
 } 
 ```
 ##### Q3. Write a function that generates B bootstrap samples and for each calculates w_tilde_hat
@@ -41,7 +41,7 @@ get_BS_sample <- function(data) {
 ```{r}
 get_wth_samples <- function(data, B) {
   w_ths <- numeric(length = B)
-  for (i in 1:B) {
+  for (i in seq_len(B)) {
     w_ths[i] <- get_wth(get_BS_sample(data))
   }
   w_ths
@@ -69,6 +69,7 @@ geom_histogram(color = "black", fill = "white") +
 w_ths_se <- sqrt(1 / (B - 1) * sum((w_ths - mean(w_ths))^2))
 alpha <- 0.025
 pcentile_ci <- quantile(w_ths, probs = c(alpha, 1 - alpha))
+sd(w_ths)
 ```
 standard error: `r w_ths_se`
 
