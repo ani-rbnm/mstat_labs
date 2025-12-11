@@ -16,19 +16,20 @@ boot_df <- read.csv("boot_data.csv", header = T)
 head(boot_df)
 ```
 
-##### Q1. Creating function to estimate `w`
+### Quiz
+
+When variables are independent
+
+##### Q1.  Estimate of wIth(w independed tilde hat)
 
 
 ```{r}
-get_wth <- function(data) {
-  w_tilde_hat <- ( var(data$y) - cov(data$x, data$y)) /
-  (var(data$x) + var(data$y) - 2 * cov(data$x, data$y))
-
-  w_tilde_hat
-} 
+get_wIth <- function(data) {
+  var(data$y) / (var(data$y) + var(data$x))
+}
+get_wIth(boot_df)
 ```
-##### Q2. Function to get a single bootstap sample
-
+##### Q2. Standard error of estimate
 
 ```{r}
 get_BS_sample <- function(data) {
@@ -42,7 +43,7 @@ get_BS_sample <- function(data) {
 get_wth_samples <- function(data, B) {
   w_ths <- numeric(length = B)
   for (i in seq_len(B)) {
-    w_ths[i] <- get_wth(get_BS_sample(data))
+    w_ths[i] <- get_wIth(get_BS_sample(data))
   }
   w_ths
 }
@@ -51,7 +52,7 @@ get_wth_samples <- function(data, B) {
 
 
 ```{r}
-B <- 1000
+B <- 100
 w_ths <- get_wth_samples(boot_df, B)
 
 ggplot(as.data.frame( w_ths ),
@@ -76,5 +77,5 @@ standard error: `r w_ths_se`
 
 95% CI (percentile method): `r pcentile_ci`
 
-Width of 95% CI(percentile method): `r pct_ci_w`
+Width of 95% CI (percentile method): `r pct_ci_w`
 
