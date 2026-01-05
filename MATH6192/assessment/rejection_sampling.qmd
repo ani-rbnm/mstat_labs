@@ -1,0 +1,208 @@
+---
+title: Rejection Sampling
+format: html
+---
+## Generic Setup
+
+#### Initial Setup
+
+```{r}
+#| message: false
+library(tidyverse)
+set.seed(42)
+```
+
+#### Sampling Functions - Rejection Sampling
+
+```{r}
+# Generic Rejection Sampling function
+# using log transformation for numeric stability
+# pass any additional parameters for the proposal distribution in the the parameters after n
+sample_reject <- function(dtgt, 
+                          dprop = dunif, # defaulted to uniform
+                          rprop = runif, # defaulted to uniform
+                          support = c(0,1), 
+                          n,
+                          scaling_const = NA,
+                          ...) {
+  log_ratio <- function(x) log(dtgt(x)) - log(dprop(x,...))
+
+  # Sampled value
+  X <- numeric(n)
+  total_run <- 0
+  accepted <- 0
+ 
+  if (is.na(scaling_const)) {
+    opt <- optimise(log_ratio, support, maximum = T)
+    logM <- opt$objective
+  } else {
+    logM <- log(scaling_const)
+  }
+  
+  if (!is.finite(logM)) stop("M is not finite; dtgt/dprop may be unbounded on the support")
+
+  while (accepted < n) {
+    # sampling from proposal dist
+    z <- rprop(1,...)
+    # total_run should be immediately updated after a random draw
+    total_run <- total_run + 1
+    if (z < support[1] || z > support[2]) next
+
+    log_rz <- log_ratio(z)
+    if (!is.finite(log_rz)) next
+
+    log_p_qm <- log_rz - logM
+    p_qm <- exp(log_p_qm) 
+    if (p_qm > 1) p_qm <- 1
+
+    if (runif(1) <= p_qm) {
+      accepted <- accepted + 1
+      X[accepted] <- z
+    }
+  }
+
+  list(
+    X = X,
+    total_run = total_run,
+    accept_rate = n / total_run,
+    M = exp(logM)
+  )
+}
+
+rbeta_reject <- function(n, a, b) {
+#### Some alternative ways the target density can be provided
+#  dtgt <- function(x) {
+#    x^(a - 1) * (1 - x)^(b - 1) 
+#  }
+#  dtgt <- function(x) {
+#     gamma(a + b) / (gamma(a) * gamma(b)) * x^(a - 1) * (1 - x)^(b - 1) 
+#  }
+  dtgt <- partial(dbeta, shape1 = a, shape2 = b)
+
+  scaling_const <- (gamma(a + b) / (gamma(a) * gamma(b))) * ((a - 1) / (a + b - 2))^(a - 1) * ((b - 1) / (a + b -2))^(b-1)
+  # rejection sampling
+  output <- sample_reject(
+    dtgt = dtgt,
+    dprop = dunif,
+    rprop = runif,
+    support = c(0,1),
+    scaling_const = scaling_const,
+    n = n
+  )
+  output
+}
+```
+
+#### Plotting
+
+```{r}
+# continuous plot
+plot_cont_estcf <- function(input) {
+  colors <- c(setNames("red",input$fields$sampled), 
+    "closedform" = "black")
+  input$df |>
+    ggplot() +
+    stat_density(aes(x = !!sym(input$fields$sampled), color = input$fields$sampled), geom = "line") +
+    stat_density(aes(x = !!sym(input$fields$cf_smooth), color = "closedform"), geom = "line") +
+    labs(
+      x = "x",
+      y = "density", 
+      title = paste("Density using", input$sample_type)
+    ) +
+    scale_color_manual(values = colors, name = "Density Type")  +
+    theme_minimal()
+
+}
+#  continuous plot with cf
+plot_cont_estcf_cf <- function(input) {
+  colors <- c(setNames("red",input$fields$sampled), 
+    "closedform_smooth" = "blue",
+    "closedform" = "black")
+  input$df |>
+    ggplot() +
+    stat_density(aes(x = !!sym(input$fields$sampled), color = input$fields$sampled), geom = "line") +
+    stat_density(aes(x = !!sym(input$fields$cf_smooth), color = "closedform_smooth"), geom = "line") +
+    geom_function(
+      aes(x = !!sym(input$fields$cf), color = "closedform"),
+      fun = input$fun,
+      args = input$args
+    ) + 
+    labs(
+      x = "x",
+      y = "density", 
+      title = paste("Density using", input$sample_type)
+    ) +
+    scale_color_manual(values = colors, name = "Density Type")  +
+    theme_minimal()
+
+}
+
+# plot comparing sampled with closed form actual density
+plot_cont_cf <- function(input) {
+  colors <- c(setNames("red",input$fields$sampled), 
+    "closedform" = "black")
+  input$df |>
+    ggplot() +
+    stat_density(aes(x = !!sym(input$fields$sampled), color = input$fields$sampled), geom = "line") +
+    geom_function(
+      aes(x = !!sym(input$fields$cf), color = "closedform"),
+      fun = input$fun,
+      args = input$args
+    ) + 
+    labs(
+      x = "x",
+      y = "density", 
+      title = paste("Density using", input$sample_type)
+    ) +
+    scale_color_manual(values = colors, name = "Density Type")  +
+    theme_minimal()
+
+}
+
+# inverse discrete plot
+plot_inv_dcrete <- function(input) {
+  input$df |>
+    ggplot() +
+    geom_bar(aes(x = !!sym(input$fields$sampled)) ) +
+    labs(
+      x = "x",
+      y = "density", 
+      title = paste("Density using", input$sample_type)
+    ) +
+    theme_minimal()
+}
+
+```
+#### Lab
+
+* c) Rejection Sampling with proposal = Unif(0,1)
+
+```{r}
+
+n <- 1000
+a <- 2
+b <- 3
+
+output <- (rbeta_reject(n, a, b))
+
+data <- tibble(
+  rbeta_reject = output$X,
+  grid = seq(0, 1, n)
+  )
+# Grouping all data for plotting
+input <- list(
+  df = data,
+  fields = list(sampled = "rbeta_reject", cf = "grid"),
+  fun = dbeta,
+  args = list(shape1 = a, shape2 = b),
+  sample_type = "Rejection Sampling"
+)
+
+# plotting
+plot_cont_cf(input)
+
+```
+Acceptance Rate: `r output$accept_rate`
+Total Run: `r output$total_run`
+Scaling factor, M: `r 1/output$M`
+

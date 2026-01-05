@@ -1,0 +1,122 @@
+---
+title: MCMC
+format: html
+---
+* Initial Setup
+
+
+```{r}
+library(tidyverse)
+set.seed(42)
+```
+
+#### Q1. Random walk
+
+```{r}
+n <- 100
+y <- rep(0,n)
+
+for (i in 2:n) y[i] = y[i - 1] + rnorm(1)
+df <- tibble(y = y)
+df |>
+  ggplot(aes(x = seq_len(n), y = y)) +
+  geom_line() + 
+  labs(x = "Iteration", y = "y") +
+  theme_minimal()
+
+```
+
+#### Q2. Goals Example
+
+
+```{r}
+saints_goals <- c(1, 2, 2, 0, 2, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 3, 0, 1, 0, 3, 0, 1, 3, 0, 1, 4)
+```
+* posterior of e^z
+* metropolis
+ - proposal : log$\theta$ = z $\sim$ N(1,0.25)
+
+# calculating on the log scale
+
+```{r}
+log_post <- function(z, data = saints_goals) {
+  # likelihood <- sapply(z, prod(dpois(data, exp(z)) ) ) 
+  log_lkld <- sapply(z, 
+    function(z) sum(dpois(data, exp(z), log = T))  
+  ) 
+  log_lkld + dnorm(z, 1, 0.5, log = T)
+}
+```
+
+```{r}
+log_ratio <- function(z1, z2) {
+  log_post(z1) - log_post(z2)
+}
+metropolis <- function(start_val = 1, n = 1000, sd = 0.2) {
+  z <- c(log(start_val), rep(0, n)) # start_val would be rejected at the end
+  accept <- 0
+  for (i in 2:(n+1)) {
+    prop <- rnorm(1, z[i - 1], sd)
+    if (log(runif(1)) < min(0, log_ratio(prop, z[i - 1])) ) {
+      z[i] <- prop
+      accept <- accept + 1
+    } else {
+      z[i] <- z[i - 1]
+    }
+  }
+  list(sample = exp(z[2:(n+1)]), accept_rate = accept / n)
+}
+```
+
+```{r}
+n <- 1000
+goals <- metropolis(sd = 0.5)
+post_mean <- mean(goals$sample)
+goals$accept_rate
+```
+
+
+```{r}
+ll <- sort(goals$sample)[0.025 * n]
+ul <- sort(goals$sample)[0.975 * n]
+
+theta_sample <- tibble(x = seq_len(n), sample = goals$sample) |>
+ mutate(ci = sample < ul & sample > ll)
+
+theta_sample |>
+ ggplot() +
+  geom_line(aes(x = x, y = sample)) +
+  labs(x = "Iteration", y = expression(theta))
+```
+
+* histogram against mean
+
+
+```{r}
+theta_sample |>
+  ggplot(aes(x = sample)) +
+  geom_histogram(binwidth = 0.1) +
+  geom_vline(aes(xintercept = mean(theta_sample$sample)), color = "red") +
+  labs(x = expression(theta), y = "count")
+```
+
+* plotting 95% CI
+
+
+```{r}
+ci <- quantile(theta_sample$sample, probs = c(0.025, 0.975))
+dens <- density(theta_sample$sample)
+dens_df <- tibble(x = dens$x, y = dens$y)
+
+dens_df |>
+  ggplot(aes(x = x, y = y)) +
+  geom_density(stat = "identity") +
+  geom_density(data = dens_df |> filter(x > ci[1] & x < ci[2]) , stat = "identity", fill = "gray") +
+  geom_vline(aes(xintercept = mean(theta_sample$sample)), color = "red") +
+  theme_minimal()
+```
+
+
+
+
+

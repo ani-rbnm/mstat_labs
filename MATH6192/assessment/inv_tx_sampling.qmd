@@ -1,0 +1,194 @@
+---
+title: Inverse Transformation Sampling
+format: html
+---
+## Generic Setup
+
+#### Initial Setup
+
+
+```{r}
+#| message: false
+library(tidyverse)
+set.seed(20231012)
+```
+#### Sampling Functions - Inverse Transformation
+
+```{r}
+# beta
+beta_inv <- function(u, lambda) {
+  - log(1-u) / lambda
+}
+
+# bernoulli
+ber_inv <- function(u, p) {
+  ifelse(u <= (1 - p),0, 1)
+}
+
+```
+
+#### Plotting
+
+```{r}
+# continuous plot
+plot_cont_estcf <- function(input) {
+  colors <- c(setNames("red",input$fields$sampled), 
+    "closedform" = "black")
+  input$df |>
+    ggplot() +
+    stat_density(aes(x = !!sym(input$fields$sampled), color = input$fields$sampled), geom = "line") +
+    stat_density(aes(x = !!sym(input$fields$cf_smooth), color = "closedform"), geom = "line") +
+    labs(
+      x = "x",
+      y = "density", 
+      title = paste("Density using", input$sample_type)
+    ) +
+    scale_color_manual(values = colors, name = "Density Type")  +
+    theme_minimal()
+
+}
+#  continuous plot with cf
+plot_cont_estcf_cf <- function(input) {
+  colors <- c(setNames("red",input$fields$sampled), 
+    "closedform_smooth" = "blue",
+    "closedform" = "black")
+  input$df |>
+    ggplot() +
+    stat_density(aes(x = !!sym(input$fields$sampled), color = input$fields$sampled), geom = "line") +
+    stat_density(aes(x = !!sym(input$fields$cf_smooth), color = "closedform_smooth"), geom = "line") +
+    geom_function(
+      aes(x = !!sym(input$fields$cf), color = "closedform"),
+      fun = input$fun,
+      args = input$args
+    ) + 
+    labs(
+      x = "x",
+      y = "density", 
+      title = paste("Density using", input$sample_type)
+    ) +
+    scale_color_manual(values = colors, name = "Density Type")  +
+    theme_minimal()
+
+}
+
+# plot comparing sampled with closed form actual density
+plot_cont_cf <- function(input) {
+  colors <- c(setNames("red",input$fields$sampled), 
+    "closedform" = "black")
+  input$df |>
+    ggplot() +
+    stat_density(aes(x = !!sym(input$fields$sampled), color = input$fields$sampled), geom = "line") +
+    geom_function(
+      aes(x = !!sym(input$fields$cf), color = "closedform"),
+      fun = input$fun,
+      args = input$args
+    ) + 
+    labs(
+      x = "x",
+      y = "density", 
+      title = paste("Density using", input$sample_type)
+    ) +
+    scale_color_manual(values = colors, name = "Density Type")  +
+    theme_minimal()
+
+}
+
+# inverse discrete plot
+plot_inv_dcrete <- function(input) {
+  input$df |>
+    ggplot() +
+    geom_bar(aes(x = !!sym(input$fields$sampled)) ) +
+    labs(
+      x = "x",
+      y = "density", 
+      title = paste("Density using", input$sample_type)
+    ) +
+    theme_minimal()
+}
+
+
+```
+#### Calculate inv transformation - Beta
+
+```{r}
+# various configs
+n = 10000
+lambda <- 4
+# Sampled and collated data
+data <- tibble(
+  u = runif(n), 
+  rexp_inv = beta_inv(u, lambda),
+  rexp = rexp(10000, 4),
+  grid = seq(0, max(rexp_inv, rexp), n)
+  )
+# Grouping all data for plotting
+input <- list(
+  df = data,
+  fields = list(sampled = "rexp_inv", cf_smooth = "rexp", cf = "grid"),
+  fun = dexp,
+  args = list(rate = lambda),
+  sample_type = "Inverse Transformation"
+)
+# plotting
+plot_cont_estcf_cf(input)
+```
+* another version of inv Beta Transform - without closedform plot
+
+```{r}
+# various configs
+n = 10000
+lambda <- 4
+# Sampled and collated data
+data <- tibble(
+  u = runif(n), 
+  rexp_inv = beta_inv(u, lambda),
+  rexp = rexp(10000, 4)
+  )
+# Grouping all data for plotting
+input <- list(
+  df = data,
+  fields = list(sampled = "rexp_inv", cf_smooth = "rexp"),
+  sample_type = "Inverse Transformation"
+)
+# plotting
+plot_cont_estcf(input)
+
+```
+#### Lab
+
+* plotting histogram and density
+
+```{r}
+# (a) 
+plot_runif <- function(n) {
+  data <- tibble(u = runif(n))
+  ggplot(data, aes(x = u)) + 
+    geom_histogram() + 
+    geom_density() +
+    labs(
+      x = "x",
+      y = "density/frequency"
+    )
+
+}
+plot_runif(10)
+# b)
+# plot_runif(2000)
+```
+* b) Generating random values from Ber(p)
+
+```{r}
+set.seed(42)
+n <- 1000
+p <- 0.6
+data <- tibble(
+  u = runif(n),
+  rber_inv = ber_inv(u, p),
+  rber = rbinom(n, size = 1, prob = p),
+)
+
+mn <- data |>
+summarize(mean = mean(rber_inv))
+```
+The mean is `r mn[1]`
+

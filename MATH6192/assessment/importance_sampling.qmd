@@ -1,0 +1,145 @@
+---
+title: Importance Sampling
+format: html
+---
+## Generic Setup
+
+#### Initial Setup
+
+```{r}
+#| message: false
+library(tidyverse)
+set.seed(42)
+```
+
+#### Lab
+
+###### 1. Monte Carlo integration
+
+* Montecarlo Estimate
+```{r}
+fn <- function(x) 3 * (2 - x * (x^2 + 1)) / (2 * (x^2 + 1))
+
+n <- 1000
+x <- runif(n) # generate random uniform numbers
+fx <- fn(x) # evaluate the function
+mu_hat <- cumsum(fx) / (1:n) # cummulative summation
+sd_hat <- sd(fx) # standard deviation
+mc.df <- data.frame(n = 1:n, mu_hat = mu_hat, li = mu_hat - 1.96 * sd_hat / sqrt(1:n), 
+                    ui = mu_hat + 1.96 * sd_hat / sqrt(1:n)) 
+# geom_ribbon will plot the CIs as a shaded area
+p <- mc.df |>
+ ggplot(aes(x = n, y = mu_hat))  +
+  geom_ribbon(mapping = aes(
+   ymin = li,
+   ymax = ui
+  ), fill = "gray") +
+  geom_line() +
+  geom_point() +
+ coord_cartesian(ylim = c(0, 3)) +
+ theme_bw() +
+ labs(y = "I")
+p
+
+```
+* Adding closed form line
+
+```{r}
+muquad <- integrate(fn, lower = 0, upper = 1)
+p + geom_hline(aes(yintercept = muquad$value), colour = "red")
+```
+
+* Finding best beta
+
+```{r}
+# sum of squared differences between h(x) and a beta density for given parameters
+beta_diff <- function(par) {
+ z <- seq(1e-10, 1, len = 100)
+ sum((fn(z) - dbeta(z, par[1], par[2]))^2)
+}
+# use optim to find the parameters that give the closest match 
+beta.opt <- optim(c(1, 3), fn = beta_diff, lower = c(1, 1), upper = c(10, 10), method = "L-BFGS-B")
+
+colors <- c("h(x)" = "red", "beta density" = "blue", "uniform density" = "black")
+ggplot() +
+ geom_function(aes(colour = "h(x)"), fun = fn) +
+ geom_function(aes(colour = "beta density"), fun = dbeta, args = list(shape1 = beta.opt$par[1], shape2 = beta.opt$par[2])) +
+ geom_function(aes(colour = "uniform density"), fun = dunif) +
+ scale_color_manual(values = colors) +
+ theme_bw() +
+ labs(x = "x", y = "h(x)/density", color = "")
+```
+
+* Importance sampling using optimal beta
+
+
+```{r}
+x <- rbeta(n, beta.opt$par[1], beta.opt$par[2])
+
+fx <- fn(x) 
+fx_wx <- fx / dbeta(x, beta.opt$par[1], beta.opt$par[2])
+mu_hat_IS <- cumsum(fx_wx) / seq_len(n)
+mu_hat_IS |> head()
+sd_hat <- sd(fx_wx)
+sd_hat
+
+IS.df <- tibble(
+  n = seq_len(n),
+  mu_hat = mu_hat_IS,
+  li = mu_hat - 1.96 * sd_hat / sqrt(n),
+  ui = mu_hat + 1.96 * sd_hat / sqrt(n)
+)
+#IS.df <- data.frame(
+#  n = seq_len(n),
+#  mu_hat = mu_hat_IS,
+#  li = mu_hat_IS - 1.96 * sd_hat / sqrt(seq_len(n)),
+#  ui = mu_hat_IS + 1.96 * sd_hat / sqrt(seq_len(n))
+#)
+IS.df |> head()
+IS.df |>
+ggplot(aes(x = n, y = mu_hat)) +
+  geom_ribbon(
+    aes(ymin = li, ymax = ui),
+    fill = "gray"
+  ) +
+  geom_line() +
+  geom_point() +
+  ylim(c(0,3)) +
+ theme_bw() +
+ labs(y = "h(x)")
+
+est_1000 <- IS.df |>
+  last()
+
+```
+The IS estimate for n = `r n` is `r   est_1000[1,2]` with standard error `r sd_hat`
+
+* alternate
+
+
+```{r}
+# sample from importance distribution
+x <- rbeta(n, beta.opt$par[1], beta.opt$par[2])
+fx <- fn(x) # function evaluations
+# calculate the importance weights
+w <- 1 / dbeta(x, beta.opt$par[1], beta.opt$par[2])
+mu_hat_IS <- cumsum(fx * w) / (1:n) # IS estimate
+mu_hat_IS |> head()
+sd_IS <- sd(fx * w) # IS standard deviation
+sd_IS
+IS.df <- data.frame(n = 1:n, mu_hat = mu_hat_IS, li = mu_hat_IS - 1.96 * sd_IS / sqrt(1:n), 
+                    ui = mu_hat_IS + 1.96 * sd_IS / sqrt(1:n))
+
+IS.df |> head()
+IS.df |>
+ ggplot(aes(x = n, y = mu_hat))  +
+  geom_ribbon(mapping = aes(
+   ymin = li,
+   ymax = ui
+  ), fill = "gray") +
+  geom_line() +
+  geom_point() +
+  ylim(c(0, 3)) +
+ theme_bw() +
+ labs(y = "h(x)")
+```
