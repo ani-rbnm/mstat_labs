@@ -38,13 +38,13 @@ mean(z);sd(z)
 ### Density plots
 
 ```{r}
-params <- tribble(
-  ~shape1, ~shape2,
-  1,1,
-  1,2,
-  1,1.5,
-  2,2.5
-)
+#params <- tribble(
+#  ~shape1, ~shape2,
+#  1,1,
+#  1,2,
+#  1,1.5,
+#  2,2.5
+#)
 # pass params in a list or a tibble 
 plot_density <- function(dfunc, params) {
   plt <- ggplot()
@@ -63,7 +63,53 @@ plot_density <- function(dfunc, params) {
   ) +
     labs(color = "Parameters", x = "x", y = "density", title = "Densities for various parameter combinations") + theme_minimal()
 }
-plot_density(dbeta, params)
+# plot_density(dbeta, params)
+
+```
+### MCMC plots
+
+
+```{r}
+# acf plot
+plot_acf <- function(chain) {
+  acf_df <- acf(chain, lag.max = 100, plot = FALSE) |>
+          with(tibble(
+            lag = lag,
+            acf = acf
+          ))
+  ggplot(aes(x = lag, y = acf)) + 
+  geom_bar(stat = "identity") +
+  labs(
+      title = "Autocorrelation plot",
+      x = "Lag",
+      y = "ACF"
+    ) + 
+  theme_minimal()
+}
+
+# trace plot
+plot_trace <- function(chain) {
+  tibble(x = seq_along(chain),
+    y = chain
+  ) |>
+  ggplot(aes(x = x, y = y)) +
+  geom_line() +
+  labs(
+      x = "Iteration",
+      y = "Value",
+      title = "Trace plot"
+    ) +
+  theme_minimal()
+}
+
+# plot density- histogram
+plot_density_hist <- function(chain, bnwth = 1) {
+  tibble(x = chain) |>
+ggplot(aes(x = x)) + 
+geom_histogram(aes(y = after_stat(density), binwidth = bnwth)) +
+geom_density(colour = "red") +
+theme_minimal()
+}
 
 ```
 
@@ -142,47 +188,118 @@ log_post <- function(z, data = saints_goals) {
 ```
 
 ```{r}
+# this the log_ratio for metropolis
 log_ratio <- function(z1, z2) {
   log_post(z1) - log_post(z2)
 }
+# this is the metropolis-hasting log ratio for asymmetric proposal
+mh_log_ratio <- function(z1,z2, dprop, con_val_param = "mean") {
+  log_post(z1) + dprop(z2, setNames(z1, con_val_param)) - 
+    log_post(z2) - dprop(z1, setNames(z2, con_val_param))
+}
 metropolis <- function(start_val = 1, 
-                       n = 1000, 
+                       n = 1001,
                        rprop = rnorm, 
                        log_ratio,
                        prev_val_param = "mean",
+                       n_burnin_rej = 1,
                        ...) {
-    z <- c(log(start_val), rep(0, n)) # start_val would be rejected at the end
-    accept <- 0
-      for (i in 2:(n+1)) {
-        prop <- do.call(
-           rprop, 
-           c(
-           list(n = 1), 
-           setNames(list(z[i - 1]), prev_val_param), 
-           list(...)
-           )
-         )
-        if (log(runif(1)) < min(0, log_ratio(prop, z[i - 1])) ) {
-          z[i] <- prop
-          accept <- accept + 1
-        } else {
-          z[i] <- z[i - 1]
-        }
-      }
-    list(sample = exp(z[2:(n+1)]), accept_rate = accept / n)
+  z <- c(log(start_val), rep(0, n)) # start_val would be rejected at the end
+  accept <- 0
+  for (i in 2:n) {
+    prop <- do.call(
+       rprop, 
+       c(
+       list(n = 1), 
+       setNames(list(z[i - 1]), prev_val_param), 
+       list(...)
+       )
+     )
+    if (log(runif(1)) < min(0, log_ratio(prop, z[i - 1])) ) {
+      z[i] <- prop
+      accept <- accept + 1
+    } else {
+      z[i] <- z[i - 1]
+    }
+  }
+  sample <- (exp(z))[-seq_len(n_burnin_rej)]
+  acf <- acf(sample, plot = FALSE, lag.max = 100)$acf
+  eff_sample_sz <- (n - n_burnin_rej) / (1 + 2 * sum(acf[-1])) 
+  
+  list(sample = sample, 
+    accept_rate = accept / n,
+    eff_sample_sz  = eff_sample_sz
+  )
 }
+# metropolis-hastings for asymetric transformation
+metropolis_hastings <- function(start_val = 1, 
+                       n = 1001, 
+                       rprop = rnorm, 
+                       log_ratio,
+                       prev_val_param = "mean",
+                       n_burnin_rej = 1, 
+                       ...) {
+  z <- c(log(start_val), rep(0, n)) # start_val would be rejected at the end
+  accept <- 0
+  for (i in 2:(n+1)) {
+    prop <- do.call(
+       rprop, 
+       c(
+       list(n = 1), 
+       setNames(list(z[i - 1]), prev_val_param), 
+       list(...)
+       )
+     )
+    if (log(runif(1)) < min(0, mh_log_ratio(prop, z[i - 1])) ) {
+      z[i] <- prop
+      accept <- accept + 1
+    } else {
+      z[i] <- z[i - 1]
+    }
+  }
+  sample <- (exp(z))[-seq_len(n_burnin_rej)]
+  acf <- acf(sample, plot = FALSE, lag.max = 100)$acf
+  eff_sample_sz <- (n - n_burnin_rej) / (1 + 2 * sum(acf[-1])) 
+  
+  list(sample = sample, 
+    accept_rate = accept / n,
+    eff_sample_sz  = eff_sample_sz
+  )
+}
+
 ```
 ## Importance Sampling
 
 ```{r}
+# importance sampling 
 expected_importance <- function(tgt_func, dtgt, dprop, rprop, n) {
   x <- rprop(n)
   f_x <- tgt_func(x)
   w <- dtgt(x) / dprop(x)
 
-  # normalised IS
-  sum(f_x * w) / sum(w)
+  # unnormalised IS - make sure to send the full proposal distrobution
+  list(
+  samp_mean = mean(f_x * w),
+  samp_sd = sd(f_x * w),
+  w = w,
+  ESS = (sum(w))^2 / sum(w * w)
+  )
 } 
+
+# with varying number of samples from 1 to n
+expected_importance_n <- function(tgt_func, dtgt, dprop, rprop, n) {
+    x <- rprop(n)
+    f_x <- tgt_func(x)
+    w <- dtgt(x) / dprop(x)
+
+    # unnormalised IS - make sure to send the full proposal distrobution
+    list(
+    samp_mean_arr = cumsum(f_x * w) / (1:n),
+    samp_sd = sd(f_x * w),
+    w = w,
+    ESS = (cumsum(w))^2 / cumsum(w * w),
+  )
+}
 ```
 
 
