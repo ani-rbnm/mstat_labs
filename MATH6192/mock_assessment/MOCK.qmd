@@ -1,0 +1,304 @@
+---
+title: "MATH6192 Practice Supervised Coursework"
+author: "37443062"
+format:
+ html:
+  embed-resources: TRUE
+---
+
+```{r}
+library(tidyverse)
+set.seed(42) # replace *** with a random seed of your choice
+```
+
+## Question 1 [10 marks]
+
+### Part a
+
+```{r}
+# Q1a code here
+pix <- function(x, mu = 1) {
+ case_when(
+  abs(x) > 1 ~ 0,
+  abs(x) < mu ~ 0.5 + (2 * x * (mu - abs(x)) / (mu * mu)),
+  .default =  0.5
+ )
+}
+mu_vals <- tibble(mu = seq(0,1, length.out = 11))
+plot_density <- function(dfunc, params, xlim) {
+  plt <- ggplot()
+  reduce(
+  pmap(params, \(...) {
+      par <- list(...)
+      lbl <- do.call(paste, c(...,list(sep = ",")))
+      geom_function(
+        aes(colour = lbl),
+        fun = \(x) do.call(dfunc, c(list(x = x), par)),
+        xlim = xlim
+      )
+    }
+  ),
+    `+`,
+    .init = plt
+  ) +
+    labs(color = "Parameters", x = "x", y = "density", title = "Densities for various parameter combinations") + theme_minimal()
+}
+plot_density(pix, mu_vals, xlim = c(-1,1))
+
+# proposal selected is  X + 0.25 where X ~ N(0,1)
+# This function would return a new function d(z)
+daffine <- function(d, a, b,...) {
+  \(z) (1 / abs(a)) * d((z - b) / a, ...) 
+}
+# function would return a new r(z) the would be sample from the z space where x
+# is a well-known distribution
+raffine <- function(r, a, b, ...) {
+  par <- list(...)
+  \(n) a * do.call(r, c(list(n = n), par)) + b
+}
+# dprop <- daffine(dnorm, a = 1, b = 0.25)
+# rprop <- raffine(rnorm, a = 1, b = 0.25)
+dprop <- daffine(dunif, a = 1, b = 0, min = -1, max = 1 )
+rprop <- raffine(runif, a = 1, b = 0, min = -1, max = 1 )
+getM <- function(dtgt, 
+                          dprop, # defaulted to uniform
+                          support = c(0,1)
+                          ) {
+                          # ...) {
+  log_ratio <- function(x) log(dtgt(x)) - log(dprop(x))
+
+  # Sampled value
+  opt <- optimise(log_ratio, support, maximum = T)
+  exp(opt$objective)
+} 
+
+opt_M <- mean(map_dbl(mu_vals$mu, \(mu) {
+  dtgt <- partial(pix, mu = mu)
+  getM(dtgt, dprop, support = c(-1,1))}),
+  na.rm = T)
+
+```
+The efficiency of the algorithm is `r 1/opt_M`. 
+
+### Part b 
+
+```{r}
+n <- 10000
+mu <- 0.5
+
+ind <- function(x) {x < 0.8}
+sample_reject <- function(dtgt, 
+                          dprop, # defaulted to uniform
+                          rprop, # defaulted to uniform
+                          support = c(0,1), 
+                          n,
+                          scaling_const = NA
+                          ) {
+                          # ...) {
+  log_ratio <- function(x) log(dtgt(x)) - log(dprop(x))
+
+  # Sampled value
+  X <- numeric(n)
+  total_run <- 0
+  accepted <- 0
+ 
+  if (is.na(scaling_const)) {
+    opt <- optimise(log_ratio, support, maximum = T)
+    logM <- opt$objective
+  } else {
+    logM <- log(scaling_const)
+  }
+  
+  if (!is.finite(logM)) stop("M is not finite; dtgt/dprop may be unbounded on the support")
+
+  while (accepted < n) {
+    # sampling from proposal dist
+    z <- rprop(1)
+    # z <- rprop(1,...)
+    # total_run should be immediately updated after a random draw
+    total_run <- total_run + 1
+    if (z < support[1] || z > support[2]) next
+
+    log_rz <- log_ratio(z)
+    if (!is.finite(log_rz)) next
+
+    log_p_qm <- log_rz - logM
+    p_qm <- exp(log_p_qm) 
+    if (p_qm > 1) p_qm <- 1
+
+    if (runif(1) <= p_qm) {
+      accepted <- accepted + 1
+      X[accepted] <- z
+    }
+  }
+
+  list(
+    X = X,
+    total_run = total_run,
+    accept_rate = n / total_run,
+    M = exp(logM)
+  )
+}
+
+dtgt <- partial(pix, mu = mu)
+output <- sample_reject(dtgt, dprop, rprop, support = c(-1,1), n = n)
+est_prop <- mean(ind(output$X), na.rm = T)
+
+```
+ 
+  The estimate of P(X<0.8) from rejection sampling is `r est_prop`.
+ 
+## Question 2 [20 marks]
+
+### Part a
+
+```{r}
+burnin <- 1000
+ratio <- function(dtgt, z1, z2) {
+  dtgt(z1) / dtgt(z2)
+}
+metro_generic_func <- function(start_val = 1, 
+                       n = 1001,
+                       dtgt,
+                       dprop,
+                       rprop, 
+                       ratio,
+                       prev_val_param = NA,
+                       n_burnin_rej = 1,
+                       ...) {
+  z <- c(start_val, rep(0, n)) # start_val would be rejected at the end
+  accept <- 0
+  for (i in 2:n) {
+    if (!is.na(prev_val_param)) {
+    prop <- do.call(
+       rprop, 
+       c(
+       list(n = 1), 
+       setNames(list(z[i - 1]), prev_val_param), 
+       list(...)
+       )
+     )
+    } else {prop <- rprop(n = 1)}
+
+    if (runif(1) < min(1, ratio(dtgt, prop, z[i - 1])) ) {
+      z[i] <- prop
+      accept <- accept + 1
+    } else {
+      z[i] <- z[i - 1]
+    }
+  }
+  sample <- z[-seq_len(n_burnin_rej)]
+  acf <- acf(sample, plot = FALSE, lag.max = 100)$acf
+  eff_sample_sz <- (n - n_burnin_rej) / (1 + 2 * sum(acf[-1])) 
+  
+  list(chain = sample, 
+    accept_rate = accept / (n - 1),
+    eff_sample_sz  = eff_sample_sz
+  )
+}
+mcmc <- metro_generic_func(start_val = 0, 
+                       n = n,
+                       dtgt,
+                       dprop,
+                       rprop, 
+                       ratio,
+                       n_burnin_rej = burnin)
+ 
+
+```
+
+The estimate of P(X<0.8) from MCMC is `r mean(ind(mcmc$chain))`.
+
+### Part b
+
+```{r}
+
+plot_acf <- function(chain) {
+  acf(chain, lag.max = 100, plot = FALSE) |>
+          with(tibble(
+            lag = lag,
+            acf = acf
+          )) |>
+  ggplot(aes(x = lag, y = acf)) + 
+  geom_bar(stat = "identity") +
+  labs(
+      title = "Autocorrelation plot",
+      x = "Lag",
+      y = "ACF"
+    ) + 
+  theme_minimal()
+}
+
+# trace plot
+plot_trace <- function(chain) {
+  tibble(x = seq_along(chain),
+    y = chain
+  ) |>
+  ggplot(aes(x = x, y = y)) +
+  geom_line() +
+  labs(
+      x = "Iteration",
+      y = "Value",
+      title = "Trace plot"
+    ) +
+  theme_minimal()
+}
+
+# plot density- histogram
+plot_density_hist <- function(chain, bnwth = 1) {
+  tibble(x = chain) |>
+ggplot(aes(x = x)) + 
+geom_histogram(aes(y = after_stat(density), binwidth = bnwth)) +
+geom_density(colour = "red") +
+theme_minimal()
+}
+
+plot_acf(mcmc$chain)
+plot_trace(mcmc$chain)
+plot_density_hist(mcmc$chain)
+
+```
+ 
+From the plots, the convergence of the chain appears to be quick as witnessed by swift drop in the Autocorrelation plot. 
+ 
+The acceptance rate of the chain is `r mcmc$accept_rate`
+
+The effective sample size is `r mcmc$eff_sample_sz`.
+
+## Question 3 [10 marks]
+
+### Part a
+
+```{r}
+ind <- function(x) x > 0.8
+expected_importance <- function(tgt_func, dtgt, dprop, rprop, n) {
+  x <- rprop(n)
+  f_x <- tgt_func(x)
+  w <- dtgt(x) / dprop(x)
+
+  # unnormalised IS - make sure to send the full proposal distrobution
+  list(
+  samp_mean = mean(f_x * w),
+  samp_sd = sd(f_x * w),
+  w = w,
+  ESS = (sum(w))^2 / sum(w * w)
+  )
+} 
+output_IS <- expected_importance(ind, dtgt, dprop, rprop, n)
+```
+
+The estimate of P(X>0.8) from this importance sampler is `r output_IS$samp_mean`.
+
+### Part b
+
+```{r}
+dprop <- daffine(dbeta, a = 0.2, b = 0.8, shape1 = 1, shape2 = 3)
+rprop <- raffine(rbeta, a = 0.2, b = 0.8, shape1 = 1, shape2 = 3)
+output_IS_beta <- expected_importance(ind, dtgt, dprop, rprop, n)
+```
+
+The estimate of P(X>0.8) from this importance sampler is `r output_IS_beta$samp_mean`.
+
+The effective sample sizes for the two importance samplers are `r output_IS$ESS` and `r output_IS_beta$ESS` respectively.
+
+

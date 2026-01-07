@@ -72,11 +72,11 @@ plot_density <- function(dfunc, params) {
 ```{r}
 # acf plot
 plot_acf <- function(chain) {
-  acf_df <- acf(chain, lag.max = 100, plot = FALSE) |>
+  acf(chain, lag.max = 100, plot = FALSE) |>
           with(tibble(
             lag = lag,
             acf = acf
-          ))
+          )) |>
   ggplot(aes(x = lag, y = acf)) + 
   geom_bar(stat = "identity") +
   labs(
@@ -117,6 +117,16 @@ theme_minimal()
 
 ### Rejection Sampling function
 ```{r}
+opt_M <- function(dtgt, 
+                  dprop, # defaulted to uniform
+                  support = c(0,1)
+                  ) {
+  log_ratio <- function(x) log(dtgt(x)) - log(dprop(x))
+
+    opt <- optimise(log_ratio, support, maximum = T)
+    exp(opt$objective)
+}
+ 
 # Generic Rejection Sampling function
 # using log transformation for numeric stability
 # pass any additional parameters for the proposal distribution in the the parameters after n
@@ -128,7 +138,7 @@ sample_reject <- function(dtgt,
                           scaling_const = NA
                           ) {
                           # ...) {
-  log_ratio <- function(x) log(dtgt(x)) - log(dprop(x,...))
+  log_ratio <- function(x) log(dtgt(x)) - log(dprop(x))
 
   # Sampled value
   X <- numeric(n)
@@ -188,6 +198,7 @@ log_post <- function(z, data = saints_goals) {
 ```
 
 ```{r}
+
 # this the log_ratio for metropolis
 log_ratio <- function(z1, z2) {
   log_post(z1) - log_post(z2)
@@ -196,6 +207,49 @@ log_ratio <- function(z1, z2) {
 mh_log_ratio <- function(z1,z2, dprop, con_val_param = "mean") {
   log_post(z1) + dprop(z2, setNames(z1, con_val_param)) - 
     log_post(z2) - dprop(z1, setNames(z2, con_val_param))
+}
+# this the log_ratio for metropolis
+ratio <- function(dtgt, z1, z2) {
+  dtgt(z1) / dtgt(z2)
+}
+metro_generic_func <- function(start_val = 1, 
+                       n = 1001,
+                       dtgt,
+                       dprop,
+                       rprop, 
+                       ratio,
+                       prev_val_param = NA,
+                       n_burnin_rej = 1,
+                       ...) {
+  z <- c(start_val, rep(0, n)) # start_val would be rejected at the end
+  accept <- 0
+  for (i in 2:n) {
+    if (!is.na(prev_val_param)) {
+    prop <- do.call(
+       rprop, 
+       c(
+       list(n = 1), 
+       setNames(list(z[i - 1]), prev_val_param), 
+       list(...)
+       )
+     )
+    } else {prop <- rprop(n = 1)}
+
+    if (runif(1) < min(1, ratio(dtgt, prop, z[i - 1])) ) {
+      z[i] <- prop
+      accept <- accept + 1
+    } else {
+      z[i] <- z[i - 1]
+    }
+  }
+  sample <- z[-seq_len(n_burnin_rej)]
+  acf <- acf(sample, plot = FALSE, lag.max = 100)$acf
+  eff_sample_sz <- (n - n_burnin_rej) / (1 + 2 * sum(acf[-1])) 
+  
+  list(sample = sample, 
+    accept_rate = accept / (n - 1), # First one is not part of sampling
+    eff_sample_sz  = eff_sample_sz
+  )
 }
 metropolis <- function(start_val = 1, 
                        n = 1001,
