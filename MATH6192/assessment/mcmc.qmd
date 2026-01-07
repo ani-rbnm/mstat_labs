@@ -52,25 +52,52 @@ log_post <- function(z, data = saints_goals) {
 log_ratio <- function(z1, z2) {
   log_post(z1) - log_post(z2)
 }
-metropolis <- function(start_val = 1, n = 1000, sd = 0.2) {
-  z <- c(log(start_val), rep(0, n)) # start_val would be rejected at the end
-  accept <- 0
-  for (i in 2:(n+1)) {
-    prop <- rnorm(1, z[i - 1], sd)
-    if (log(runif(1)) < min(0, log_ratio(prop, z[i - 1])) ) {
+metropolis <- function(start_val = 1, 
+                       n = 1000, 
+                       rprop = rnorm, 
+                       log_ratio,
+                       prev_val_param = "mean",
+                       ...) {
+    z <- c(log(start_val), rep(0, n)) # start_val would be rejected at the end
+    accept <- 0
+      for (i in 2:(n+1)) {
+               prop <- do.call(
+                  rprop, 
+                  c(
+                  list(n = 1), 
+                  setNames(list(z[i - 1]), prev_val_param), 
+                  list(...)
+                  )
+                )
+               # prop <- rnorm(1, z[i - 1], sd)
+               if (log(runif(1)) < min(0, log_ratio(prop, z[i - 1])) ) {
       z[i] <- prop
-      accept <- accept + 1
-    } else {
+        accept <- accept + 1
+      } else {
       z[i] <- z[i - 1]
-    }
-  }
-  list(sample = exp(z[2:(n+1)]), accept_rate = accept / n)
+      }
+             }
+    list(sample = exp(z[2:(n+1)]), accept_rate = accept / n)
 }
+#metropolis <- function(start_val = 1, n = 1000, sd = 0.2) {
+#  z <- c(log(start_val), rep(0, n)) # start_val would be rejected at the end
+#  accept <- 0
+#  for (i in 2:(n+1)) {
+#    prop <- rnorm(1, z[i - 1], sd)
+#    if (log(runif(1)) < min(0, log_ratio(prop, z[i - 1])) ) {
+#      z[i] <- prop
+#      accept <- accept + 1
+#    } else {
+#      z[i] <- z[i - 1]
+#    }
+#  }
+#  list(sample = exp(z[2:(n+1)]), accept_rate = accept / n)
+#}
 ```
 
 ```{r}
 n <- 1000
-goals <- metropolis(sd = 0.5)
+goals <- metropolis(sd = 0.5, log_ratio = log_ratio)
 post_mean <- mean(goals$sample)
 goals$accept_rate
 ```

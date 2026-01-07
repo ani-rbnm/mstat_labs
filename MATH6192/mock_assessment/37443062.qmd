@@ -1,0 +1,184 @@
+---
+title: "MATH6192 Practice Supervised Coursework"
+author: "37443062"
+format:
+ html:
+  embed-resources: TRUE
+---
+
+```{r}
+library(tidyverse)
+set.seed(42) # replace *** with a random seed of your choice
+```
+
+## Question 1 [10 marks]
+
+### Part a
+
+```{r}
+# Q1a code here
+library(tidyverse)
+pix <- function(x, mu = 1) {
+ case_when(
+  abs(x) > 1 ~ 0,
+  abs(x) < mu ~ 0.5 + (2 * x * (mu - abs(x)) / (mu * mu)),
+  .default =  0.5
+ )
+}
+
+n <- 10000
+# plotting density for pix
+x <- seq(-1,1,length.out = n)
+mu <- c(0, 0.25, 0.5, 0.75, 1)
+df <- tibble(
+  x = x,
+  y1 = pix(x,mu[1]),
+  y2 = pix(x,mu[2]),
+  y3 = pix(x,mu[3]),
+  y4 = pix(x,mu[4]),
+  y5 = pix(x,mu[5])
+
+)
+mu <- c(0.5)
+df |>
+ggplot(aes(x = x)) + 
+  geom_line(aes(y = y1)) +
+  geom_line(aes(y = y2)) +
+  geom_line(aes(y = y3)) +
+  geom_line(aes(y = y4)) +
+  geom_line(aes(y = y5))
+  
+# proposal = N(0,1)
+
+sample_reject <- function(dtgt, 
+                          dprop = dunif, # defaulted to uniform
+                          rprop = runif, # defaulted to uniform
+                          support = c(0,1), 
+                          n,
+                          scaling_const = NA,
+                          ...) {
+    log_ratio <- function(x) log(dtgt(x)) - log(dprop(x,...))
+
+    # Sampled value
+    X <- numeric(n)
+    total_run <- 0
+    accepted <- 0
+   
+    if (is.na(scaling_const)) {
+        opt <- optimise(log_ratio, support, maximum = T)
+        logM <- opt$objective
+      } else {
+        logM <- log(scaling_const)
+      }
+    
+    if (!is.finite(logM)) stop("M is not finite; dtgt/dprop may be unbounded on the support")
+
+    while (accepted < n) {
+        # sampling from proposal dist
+        z <- rprop(1,...)
+        # total_run should be immediately updated after a random draw
+        total_run <- total_run + 1
+        if (z < support[1] || z > support[2]) next
+
+        log_rz <- log_ratio(z)
+        if (!is.finite(log_rz)) next
+
+        log_p_qm <- log_rz - logM
+        p_qm <- exp(log_p_qm) 
+        if (p_qm > 1) p_qm <- 1
+
+        if (runif(1) <= p_qm) {
+            accepted <- accepted + 1
+            X[accepted] <- z
+          }
+      }
+
+    list(
+        X = X,
+        total_run = total_run,
+        accept_rate = n / total_run,
+        M = exp(logM)
+      )
+}
+
+mu <- 0.5
+output <- sample_reject(
+  \(x) {pix(x, mu = mu)},
+  dprop = dnorm,
+  rprop = rnorm,
+  support = c(-1,1),
+  n = n
+)
+output$M
+output$accept_rate
+```
+ 
+The efficiency of the algorithm is `r output$accept_rate`. 
+
+### Part b 
+
+```{r}
+# Q1b code here
+
+pi_p <- pix(output$X)
+m <- 0
+sum <- 0
+for (i in seq_len(n)) {
+  if (output$X[i] > - 1 && output$X[i] < 0.8 ) {
+    m <- m + 1
+    sum <- sum + pi_p[i]
+  }
+}
+prob <- mean(output$X < 0.8)
+prob
+```
+ 
+The estimate of P(X<0.8) from rejection sampling is `r prob`.
+ 
+## Question 2 [20 marks]
+
+### Part a
+
+```{r}
+# Q2a code here
+
+```
+
+The estimate of P(X<0.8) from MCMC is ***.
+
+### Part b
+
+```{r}
+# Q2b code here
+
+```
+ 
+From the plots, the convergence of the chain appears to be ***. 
+ 
+The acceptance rate of the chain is ***.
+
+The effective sample size is ***.
+
+## Question 3 [10 marks]
+
+### Part a
+
+```{r}
+# Q3a code here
+
+```
+
+The estimate of P(X>0.8) from this importance sampler is ***.
+
+### Part b
+
+```{r}
+# Q3b code here
+
+```
+
+The estimate of P(X>0.8) from this importance sampler is ***.
+
+The effective sample sizes for the two importance samplers are *** and ***, respectively.
+
+
