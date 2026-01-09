@@ -1,0 +1,172 @@
+---
+format:
+    html:
+        css: styles.css
+---
+
+## Task 1: Using SQL Queries
+
+The database `data/lego.sqlite` contains information about all the lego sets.
+The schema is described in the figure below:
+
+![Lego dataset schema](downloads_schema.png)
+
+In the schema:
+- Each box represents a table.
+- Each row represents a column in that table.
+- Lines joining columns in tables give primary / foreign key relationships.
+
+
+### Part 1
+
+In the first part of the task we will *only* be writing `sql` queries.
+Remember we can execute a SQL query like so:
+
+```{r}
+library(DBI)
+con <- dbConnect(RSQLite::SQLite(), "data/lego.sqlite")
+
+# Simple query example
+dbGetQuery(con, "SELECT * FROM sets") |> head()
+dbDisconnect(con) # always disconnect from the database after you're done!
+```
+
+Write sql queries to answer the following questions:
+
+- How many sets are in the dataset?
+- How many distinct minifig parts have been made? (Hint: look at the table `part_categories` to work out which parts are minifigs).
+- Which set has the most parts?
+- In which year were the most lego sets released? (*Hint*: You can assign a name to a calculated column using e.g. `select count(*) as set_count`)
+- Which theme has the most sets? 
+
+
+::: {.solution}
+
+```{r}
+library(DBI)
+con <- dbConnect(RSQLite::SQLite(), "data/lego.sqlite")
+
+dbGetQuery(con, 
+"SELECT COUNT(1) AS `Number of sets` FROM sets"
+)
+dbGetQuery(con, 
+  "SELECT count(distinct(part_num)) FROM parts JOIN part_categories ON parts.part_cat_id = part_categories.id where upper(part_categories.name) like \"%MINIFIG%\""
+)
+mostparts <-
+dbGetQuery(con,
+"select name from sets where num_parts = (select max(num_parts) from sets)"
+)
+dbGetQuery(con,
+  "select name from sets order by num_parts desc limit 1"
+)
+dbGetQuery(con,
+"select year, count(set_num) as `num_released` from sets group by year order by num_released desc LIMIT 1"
+)
+dbGetQuery(con,
+"select themes.name as `theme` from sets join themes on sets.theme_id = themes.id group by sets.theme_id order by count(set_num) desc LIMIT 1"
+)
+dbDisconnect(con)
+
+```
+Set with most parts: `r mostparts`
+
+:::
+
+### Part 2
+
+For each of the queries above, recreate the query using `dbplyr`.
+Compare the query you wrote to the query produced by `dbplyr` using `show_query`.
+Try using `sql_render` to produce a runnable query.
+
+```{r}
+library(tidyverse)
+library(dbplyr)
+
+con = dbConnect(RSQLite::SQLite(), "data/lego.sqlite")
+parts = tbl(con, "parts")
+colors = tbl(con, "colors")
+inventories = tbl(con, "inventories")
+inventory_parts = tbl(con, "inventory_parts")
+inventory_sets = tbl(con, "inventory_sets")
+part_categories = tbl(con, "part_categories")
+sets = tbl(con, "sets")
+themes = tbl(con, "themes")
+
+# build a dbplyr query
+first_sets <- sets |> head(5) 
+# view the query
+show_query(first_sets)
+# run the query through the db interface
+dbGetQuery(con, sql_render(first_sets))
+# use dbplyr to run the query
+first_sets |> collect()
+```
+- How many sets are in the dataset?
+- How many distinct minifig parts have been made? (Hint: look at the table `part_categories` to work out which parts are minifigs).
+- Which set has the most parts?
+- In which year were the most lego sets released? (*Hint*: You can assign a name to a calculated column using e.g. `select count(*) as set_count`)
+- Which theme has the most sets? 
+
+
+::: {.solution}
+
+
+```{r}
+
+q1 <- sets |> count()
+dbGetQuery(con, sql_render(q1))
+show_query(q1)
+q1 |> collect()
+  
+q2 <- parts |> inner_join(part_categories,
+  join_by(part_cat_id == id))  |>
+  filter(str_to_upper(name.y) %LIKE% "%MINIFIG%") |>
+  summarize(n = n_distinct(part_num))
+dbGetQuery(con, sql_render(q2))
+show_query(q2)
+q2 |> collect()
+
+q3 <- sets |>
+  arrange(desc(num_parts)) |>
+  select(name) |>
+  head(1)
+dbGetQuery(con, sql_render(q3))
+show_query(q3)
+q3 |> collect()
+
+q4 <- sets |>
+  group_by(year) |> summarize(n = n()) |> arrange(desc(n)) |> head(1)
+dbGetQuery(con, sql_render(q4))
+show_query(q4)
+q4 |> collect()
+
+q5 <- sets |>
+  group_by(theme_id) |>
+  summarize(n = n()) |> arrange(desc(n)) |> head(1) |>
+  inner_join(themes, join_by(theme_id == id)) |> select(name)
+dbGetQuery(con, sql_render(q5))
+show_query(q5)
+q5 |> collect()
+```
+
+:::
+
+Disconnect after use
+```{r}
+dbDisconnect(con)
+```
+
+## Task 2
+
+Build a Shiny app to explore the LEGO data.
+
+**Requirements:**
+
+1. Include a dropdown menu to select a theme.
+2. Include a slider to filter sets by the number of parts.
+3. Display the filtered data in a table.
+4. Display a plot showing the number of sets released per year for the selected theme.
+
+**Bonus:**
+
+Add a second plot showing the distribution of the number of parts for the selected theme.

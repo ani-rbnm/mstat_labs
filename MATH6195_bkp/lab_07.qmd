@@ -1,0 +1,72 @@
+---
+format:
+    html:
+        css: styles.css
+---
+
+## Objectives {.unnumbered}
+- Build and run a basic `shiny` app.
+- Allow user input (`sliderInput`, `selectInput`).
+- Apply `reactive` logic to produce dynamic output.
+- Deploy locally and to `shinyapps.io`.
+
+## About the Lab
+
+In this lab we will not be writing most of the code in this Quarto notebook. Remember - we can't run Shiny apps through Quarto!
+Instead, you will find a `src/` subdirectory in which you should write all your shiny apps.
+
+## Task 1
+
+- [x] Open the file `src/app1.R`
+- [x] Run the shiny app.
+- [x] Add a `textOutput` to the `ui` which the `server` fills with the text "Hello <name>", where <name> is the name input.
+- [x] Add a `numericInput` to the `ui` for the user to input their age. Make the UI print the age somewhere.
+- [x] Look up the [`selectInput` control](https://shiny.posit.co/r/reference/shiny/latest/selectinput.html). Add a `selectInput` control that lets you choose a favourite colour from a list. Make the UI print the selected colour somewhere.
+- [x] (Hard) Look up the `renderUI` function and use it to change the colour of the greeting to the chosen colour.
+
+### Hint: Using renderUI to change greeting colour
+
+To dynamically change the colour of the greeting based on the selected colour, use `renderUI` in the server and `uiOutput` in the UI. For example:
+
+
+## Task 2
+
+Choose a dataset that we've used in this course and build a flexible visualiser for that dataset. The visualiser should allow the user to:
+
+- Select numerical variables for the $x$ and $y$ axes of a plot (using `selectInput`) and render the plot. *Hint: Look into using `aes_string` in `ggplot` to allow you to pass strings from the `ui` instead of column names.*
+- Select a categorical variable to use to colour the points on the plot.
+- Enter friendly $x$- and $y$-axis labels, and a title.
+- (Hard) Create a `reactive` expression that filters the dataset based on another categorical variable. *Hint: If a column name is stored as `col = "species"`, you need to wrap it in `!!sym(col)` to filter on it in `dplyr`, i.e.:*
+
+```r
+library(palmerpenguins)
+library(tidyverse)
+data <- penguins
+col = "species"
+data |> filter(!!sym(col) == "Adelie")
+```
+
+**Extension**:
+
+How would you modify your app to allow the user to *upload* a dataset rather than hard-coding one in the server?
+There needs to be much more dynamic server-side logic in this case!
+
+## Task 3
+
+Deploy your app from Task 1 or Task 2 to `shinyapps.io`:
+
+- Create a "Free" tier account
+- In RStudio go to `Tools > Global Options > Publishing`.
+- Click **Connect** and choose **ShinyApps.io**. (RStudio may require some apps to be installed).
+- Follow the prompts to authorize RStudio with your `shinyapps.io` account. (You'll need to copy/paste a token from the website).
+
+Once this is completed:
+
+- Open the app you want to deploy in RStudio.
+- Look for the **Publish** button (blue icon) in the upper-right corner of the editor pane.
+- Click it and select **Publish Application**.
+- Choose which files to include.
+- Click **Publish** and wait for the deployment to complete.
+- RStudio will automatically open your deployed app in a browser.
+
+Then share your published app with someone!

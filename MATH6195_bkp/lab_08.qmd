@@ -1,0 +1,195 @@
+---
+format:
+    html:
+        css: styles.css
+---
+
+## Objectives {.unnumbered}
+
+## Task 1: `map`, `map2` and `pmap`
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+set.seed(123)
+list_of_vectors <- list(
+    rnorm(20),
+    rnorm(20, mean=1),
+    rnorm(20, mean=-1, sd=2)
+)
+numbers <- 1:10
+df <- tibble(a = rnorm(10), b=rnorm(10), c=rnorm(10))
+summary_stats <- list(mean, median, sd, var)
+names <- c("Alice", "Bob", "Charlie")
+greetings <- c("Hello", "Hi", "Howdy")
+tibbles <- list(
+    df1 = tibble(x=1:3, y=5:7),
+    df2 = tibble(a=rnorm(5), b=rnorm(5, mean=1)),
+    df3 = penguins
+)
+tibbles.names = c("numbers", "random", "penguins")
+variables <- c("flipper_length_mm", "bill_length_mm", "bill_depth_mm")
+```
+
+Using `purrr` `map` and `reduce` functions, solve the following coding tasks.
+
+### `map` functions
+
+- [ ] Calculate the mean of each vector in `list_of_vectors`
+- [ ] For each number in `list_of_numbers`, create a logical vector with a 1 where the number is even and a zero where it is false. (*Hint*: remember `ifelse`)
+- [ ] For each number `<n>` in `list_of_numbers`, create a string that says "Value: <n>"..
+- [ ] For each statistic in `summary_stats`, apply the statistic to `numbers`.
+
+::: {.solution}
+
+```{r}
+map_dbl(list_of_vectors, mean)
+map_int(numbers, \(x) ifelse(x %% 2 == 0, 1, 0))
+map_chr(numbers, \(x) paste("Value:",x))
+map_dbl(summary_stats, \(x) x(numbers))
+
+```
+
+:::
+
+### `map2` and `pmap`
+
+- [ ] For each `<name>` in `names` and each `<greeting>` in `greetings`, create a string that says `<greeting> <name>`
+- [ ] Write each `tibble` in `tibbles` to a file with the corresponding name in `tibbles.names` in the directory `results/`. (*Hint*: use the function `write_csv`).
+- [ ] For each `<variable>` in `variables`, produce a plot of that variable against `body_mass_g` in `penguins`. 
+- [ ] Create a list of display names for the $y$-axes and add them to your plot.
+- [ ] Create a list of titles and add them to your plot.
+
+
+::: {.solution}
+
+```{r}
+pmap_chr(list(greetings, names), \(greeting, name) paste(greeting, name))
+pwalk(list(tibbles, tibbles.names), \(tibble, name) {
+          path = paste0("results/", name)
+          dir.create(dirname(path), recursive=T, showWarnings= F)
+          write_csv(tibble, path)
+          }
+         )
+variables <- c("flipper_length_mm", "bill_length_mm", "bill_depth_mm")
+
+ydisplays <- c("Flipper Lenghth", "Bill Length", "Bill Depth")
+titles <- c("Flipper Length vs BM", "Bill length vs BM", "Bill depth vs BM")
+plots <- pmap(list(variables, ydisplays, titles), \(y,ydisplay, title ) penguins |> ggplot(aes(x = body_mass_g, y = !!sym(y))) +
+     geom_point() +
+     labs(
+      x = "Body Mass",
+      y = ydisplay,
+      title = title
+  )
+
+)
+plots[[1]]
+plots[[2]]
+plots[[3]]
+```
+
+:::
+
+## Task 2: `reduce`
+
+```{r} 
+# set up code
+functions <- list(
+    \(x) x + 1,
+    \(x) x * 2,
+    \(x) sqrt(x)
+)
+
+daily_returns <- rnorm(365, mean = 0.001, sd = 0.01)
+```
+
+- [ ] Compute the sum and product of `numbers`.
+- [ ] Apply the composition of all functions in the list `functions` to a starting number. *Hint:* use the `init` keyword of `reduce`.
+- [ ] The `daily_returns` vector represents one year of percentage changes in portfolio value each day. Assuming all the daily returns are reinvested and we start with £100, calculate the portfolio value after one year.
+
+::: {.solution}
+
+```{r}
+reduce(numbers, \(agg, curr) agg + curr)
+reduce(numbers, \(agg, curr) agg * curr)
+starting <- 17
+reduce(functions, 
+  \(agg, curr) curr(agg),
+.init = starting 
+)
+st_value <- 100
+reduce(daily_returns, \(agg, curr) agg * (1 + curr) ,
+  .init = st_value
+       )
+```
+
+:::
+
+
+## Task 3: Data Frame Mapping Functions
+
+The next two subtasks require you to build *data frames*.
+To accomplish this there are two `purrr` functions you can use:
+
+- `map_dfr`: takes a function that returns *dataframe rows* and binds them into a tibble.
+- `map_dfc`: as above, but for columns.
+
+Select the appropriate function to rewrite the below loop-based code into a version that uses `purrr`.
+
+```{r}
+library(palmerpenguins)
+
+species <- unique(penguins$species)
+results <- list()
+
+for (sp in species) {
+    data <- penguins |> filter(species == sp)
+
+    # fit a linear regression model of bill depth vs. bill length
+    model <- lm(bill_depth_mm ~ bill_length_mm, data=data)
+
+      # Extract the slope and intercept
+    slope <- coef(model)["bill_length_mm"]
+    intercept <- coef(model)["(Intercept)"]
+    
+    # Store the results
+    results[[sp]] <- tibble(
+        species = sp,
+        slope = slope,
+        intercept = intercept
+    )
+}
+
+# put into a data frame
+loop_results <- bind_rows(results)
+loop_results
+```
+
+::: {.solution}
+
+```{r}
+species <- unique(penguins$species)
+map_dfr(species, 
+\(sp) {
+    data <- penguins |> filter(species == sp)
+
+    # fit a linear regression model of bill depth vs. bill length
+    model <- lm(bill_depth_mm ~ bill_length_mm, data=data)
+
+      # Extract the slope and intercept
+    slope <- coef(model)["bill_length_mm"]
+    intercept <- coef(model)["(Intercept)"]
+    
+    # Store the results
+    tibble(
+        species = sp,
+        slope = slope,
+        intercept = intercept
+    )
+
+  }
+)
+```
+
+:::
