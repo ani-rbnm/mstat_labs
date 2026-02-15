@@ -1,0 +1,18 @@
+.key {
+  color: #b00020;
+  font-weight: 600;
+}
+
+.warning {
+  color: #d97706;
+}
+
+.question {
+  color: #0b6623;
+  font-weight: 600;
+}
+.definition {
+  border-left: 4px solid #2563eb;
+  padding-left: 0.75em;
+  color: #1e3a8a;
+}

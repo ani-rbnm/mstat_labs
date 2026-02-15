@@ -1,0 +1,17 @@
+\usepackage{xcolor}
+
+\definecolor{keycolor}{HTML}{B00020}
+\definecolor{questioncolor}{HTML}{0B6623}
+\definecolor{warningcolor}{HTML}{D97706}
+\definecolor{defcolor}{HTML}{2563EB}
+
+% inline spans
+\newcommand{\key}[1]{\textcolor{keycolor}{\textbf{#1}}}
+\newcommand{\question}[1]{\textcolor{questioncolor}{\textbf{#1}}}
+\newcommand{\warning}[1]{\textcolor{warningcolor}{#1}}
+
+% block environments
+\usepackage{framed}
+\newenvironment{definition}
+  {\begin{leftbar}\color{defcolor}}
+  {\end{leftbar}}

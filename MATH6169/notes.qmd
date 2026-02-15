@@ -1,0 +1,308 @@
+---
+title: Advanced R
+format: 
+  html:
+    css: styles.css
+  pdf:
+    include-in-header:
+      text: |
+        \input{preamble.tex}
+---
+
+
+```{r}
+#| include: false
+knitr::opts_chunk$set(
+  results = "markup",
+  collapse = TRUE,
+  comment = ""
+)
+```
+```{r}
+## library to inspect objects
+library(lobstr)
+library(tibble)
+```
+### 1. Names and Values
+
+- reassignment [does not create]{.warning} new objects.
+    * Can use either `obj_addr` or `ref`
+
+```{r}
+x <- c(1,2,3)
+y <- x
+obj_addr(x)
+obj_addr(y)
+ref(x)
+ref(y)
+```
+
+
+- strict about syntactic names: only [characters]{.key}, [underscore]{.key}, [digits]{.key} and [dots]{.key} are allowed.
+Can [only]{.warning} start with [digits]{.warning} or [dot but not followed by a number]{.warning}. 
+In order to use [non-syntactic]{.warning} identifiers, use [backticks.]{.warning}
+    
+```{r}
+`_abc` <- 1
+`_abc`
+`10` <- 15
+`10`
+```
+- use `make.names` to convert to valid values. 
+    
+- [copy-on-modify]{.key} objects are copied only when they are modified
+
+    * Once duplicate object was created for y, it is the [single pointer]{.warning} to the new object. So, subsequent
+changes [do not create]{.warning} any further objects. This is an example of [modify-in-place.]{.key}
+
+```{r}
+x <- c(1,2,3)
+cat(tracemem(x), "\n")
+y <- x # not here
+y[[2]] <- 22
+y[[3]] <- 24
+untracemem(y)
+```
+- function arguments follow copy-on-modify rule on the passed parameter too.
+    
+    * if the passed parameter is returned back without modification, this would be the same pointer that was passed.
+
+- vector objects are created with values in place whereas [lists]{.warning} have [pointers]{.warning} to 
+values created separately.
+
+```{r}
+vec <- c(1,2,3)
+l <- list(1,2,3)
+
+ref(vec)
+ref(l)
+```
+- [copy-on-modify for lists]{.key} When lists are modified, they are [shallow copied]{.warning}.
+This means that the copied list points to the old objects that were not changed. Only change is to the object that was.
+
+```{r}
+l1 <- list(1,2,3)
+l2 <- l1
+l2[[2]] <- 22
+ref(l1, l2)
+```
+- [copy-on-modify for data frames]{.key} Dataframes has one pointer for each column 
+    
+    * [if column is modified,]{.key} Vector corresponding to the changed column will be created. 
+Then, shallow copy with pointer to the new column vector.
+    * [if row modified,]{.key} All vectors copied. Then, shallow copy to the pointers of [each new]{.warning} column.
+
+```{r}
+df <- data.frame(a = 1:5, b = 11:15)
+df1 <- df
+df1[,2] <- df1[,2] * 2
+ref(df, df1)
+df2 <- df
+df2[2,] <- df2[2,1] * 3
+ref(df, df2)
+```
+- character vectors do not store values. They point to a [global pool of strings]{.warning}
+
+```{r}
+x <- c("a", "a", "abc", "ac")
+ref(x, character = TRUE)
+```
+
+- [No use declaring an integer vector, since if any member is inadvertently allocated a double value,
+it triggers a copy action whereby a double vector is created upcasting each value in the original 
+]{.warning}
+```{r}
+x <- c(1L, 2L, 3L)
+tracemem(x)
+x[[3]] <- 4
+untracemem(x)
+```
+- [Address extensions are not reported by `tracemem`]{.warning}. Note below that `x` was copied when 
+we attempted to extend its size to 3.
+```{r}
+x <- list(1, 2)
+tracemem(x)
+x[[3]] <- 3
+ref(x)
+```
+[Q. What happens when a list is allocated to itself as a member?]{.question}
+shallow-copy of x pointing to the old copy of x. [Note: Ignore the extra copies internally created by
+`ref` triggering the two extra `tracemem` messages.]{.warning}
+
+```{r}
+x <- list(1,2)
+ref(x)
+tracemem(x)
+x[[2]] <- x
+ref(x)
+```
+- Repeated objects are counted only once
+
+```{r}
+x <- runif(1e6)
+obj_size(x)
+obj_size(list(x,x,x))
+```
+- Cast `data.frame` to list using `as.list` [if it has to be updated in a list]{.warning}. 
+[lists use internal C code]{.key} and updates the same data.frame object rather than creating one
+for each iteration.
+```{r}
+x <- data.frame(matrix(runif(5 * 1e4), ncol = 5))
+tracemem(x)
+med <- vapply(x, median, numeric(1))
+
+for (i in seq_along(med)) {
+  x[[i]] <- x[[i]] + med[[i]]
+}
+untracemem(x)
+```
+  - key line here is the `as.list(x)`
+```{r}
+x <- data.frame(matrix(runif(5 * 1e4), ncol = 5))
+tracemem(x)
+x <- as.list(x)
+med <- vapply(x, median, numeric(1))
+
+for (i in seq_along(med)) {
+  x[[i]] <- x[[i]] + med[[i]]
+}
+untracemem(x)
+```
+- [environments]{.key} are [always modified in place.]{.key}
+
+```{r}
+e1 <- rlang::env(a = 1, b = 2, c = 3)
+e2 <- e1
+e1$c <- 4
+e2$c
+```
+
+### 2. Vectors
+
+- Two types of vectors: [atomic vectors]{.key} and [lists]{.key}
+- Types of atomic vectors: [logical]{.key}, [integer]{.key}, [double]{.key} and [character]{.key}. `integer` and `double` together are [numeric]{.key}. 
+*raw* and *complex* are rare.
+- `Inf`, `-Inf` and `NaN` are of type double. 
+- `10` is double but `10L` is integer. 
+- use [`typeof()`]{.key} and `length()` for vectors. [Do not use `mode()` or `storage.mode`]{.warning}
+- use `is.na()` for check NA
+    - every operation with NA leads to NA except for `| & ^`
+
+```{r}
+x <- c(5, NA, 10, NA)
+x == NA
+x | TRUE 
+```
+- Use `is.logical()`, `is.double()`, `is.integer()` and `is.character()` [but never `is.numeric()`, `is.vector()`, `is.atomic()`]{.warning} as 
+they perform different functionality.
+- coercion order : character > double > integer > logical
+- failed coercion leads to `NA` 
+
+#### 2.1 Attributes
+
+::: {.definition}
+Name-value pairs that deem special meanings to atomic vectors. `attr(x,"attname") <- "attval"` used to set individual ones, 
+use `str(attributes(x))` to view, use `names(x) <- c("a","b","c")` and `dim(x) <- c(2,3)` to set the special `names` and `dim` attributes.
+:::
+
+[Q. How to check if a vector is atomic, matrix or array?]{.question} First check with `is.null(dim(x))`. If `true` then *vector*, else use `is.matrix()` or
+`is.array()`
+
+```{r}
+x <- c(1:20)
+is.null(dim(x))
+is.matrix(x)
+
+dim(x) <- c(4, 5)
+is.null(dim(x))
+is.matrix(x)
+
+dim(x) <- c(2,5,2)
+is.null(dim(x))
+is.matrix(x)
+is.array(x)
+
+```
+:::{.definition}
+**S3 Atomic vectors** Vectors with `class` attribute. Ex. `factor`,`Date`, `POSIXct`, `difftime`. 
+Some of these S3 vectors have other attributes as well.
+:::
+
+- `factor` are built over `integer` types, has `class` and `levels` attributes. [Non-existent
+values]{.warning} can be part of the levels as well.
+
+```{r}
+x <- c("b", "a", "a", "a", "b")
+table(x)
+x_f <- factor(x, levels = c("a", "b", "c"))
+table(x_f)
+attributes(x_f)
+```
+- `Date`, `POSIXct` and `difftime` built over `double`. First two are no. of days and no. of seconds
+since *1970-01-01* and the latter uses `unit` to store durations.
+```{r}
+today <- Sys.Date()
+today
+str(today)
+dt <- as.Date("1970-02-01")
+unclass(dt)
+
+tm <- as.POSIXct("1970-01-02 12:00", tz = "UTC")
+attributes(tm) <- NULL
+tm
+
+wk_1 <- as.difftime(20, units = "weeks")
+str(wk_1)
+```
+- use `attributes(x) <- NULL` to get their undelying values.
+
+[Q. How to convert a list to an atomic vector?]{.question} `unlist(lst)`. `unlist` strips **all** 
+attributes and retains only the underlying value.
+
+- use `as_tibble()` to convert from `data.frame` to `tibble`
+
+#### `tibble` > `data.frame`
+
+(@) tibble allows reference to columns defined during construction.
+```{r}
+df <- tibble(
+x = 1:3,
+  y = x * 3
+)
+df
+attributes(df)
+```
+(@) single column selected `[` is [not converted automatically to vector]{.warning}.
+
+```{r}
+df <- data.frame(
+x = 1:3,
+y = 11:13
+)
+df[,"y"]
+df <- as_tibble(df)
+df[,"y"]
+```
+(@) Including list as a column requires less code and is printed better
+
+```{r}
+df <- tibble(
+x = 1:3,
+y = list(1:2, 1:3, 1:4)
+)
+df
+```
+[Q. How do we get a selected tibble column directly in the form of a vector]{.question} `df[["col1"]]`
+
+```{r}
+df <- data.frame(
+x = 1:3,
+y = 11:13
+)
+df[["y"]]
+```
+
+```{r}
+a <- numeric()
+```
+- `as.matrix()` vs `data.matrix()` Matrices have the same atomic types. `as.matrix` converts into the largest type whereas `data.matrix` converts to `double`

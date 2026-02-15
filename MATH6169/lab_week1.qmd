@@ -1,0 +1,141 @@
+---
+title: MATH6169 - Week1 lab
+format: 
+  html:
+    css: styles.css
+  pdf:
+    include-in-header:
+      text: |
+        \input{preamble.tex}
+---
+
+
+```{r}
+#| include: false
+knitr::opts_chunk$set(
+  results = "markup",
+  collapse = TRUE,
+  comment = ""
+)
+```
+#### Preliminaries
+
+```{r}
+library(datasets)
+library(purrr)
+library(ggplot2)
+library(dplyr)
+data("mtcars")
+cars.df <- mtcars
+
+```
+
+#### [Q1. Using the `lm()` function]{.question}
+
+- Structure of the car data
+
+```{r}
+str(cars.df)
+```
+- fitting `mpg`
+
+
+```{r}
+cars.lm <- lm(mpg ~ cyl + hp + wt + qsec + vs + am, data = cars.df)
+cars.summary <- summary(cars.lm)
+cars.summary
+```
+- 95% CI for the intercept
+
+```{r}
+cars.lm$coefficients[1] + c(-1, 1) * qt(0.975, 25) * cars.summary$coefficients[1,2]
+confint(cars.lm, c("(Intercept)"))
+confint(cars.lm)
+```
+- Associated pvalue 
+
+```{r}
+cars.summary$coefficients[1,4]
+```
+
+#### [Q2. Comparing models]{.question}
+
+- a) without `vs`
+
+
+```{r}
+cars.lm_vs <- update(cars.lm, ~ . -vs)
+sum_vs <- summary(cars.lm_vs)
+sum_vs
+```
+- comparing Adjusted $R^2$, AIC and BIC of the model
+
+```{r}
+mod_list <- list(original = cars.lm, no_vs = cars.lm_vs)
+adj_r2 <- map_dbl(list("original" = cars.summary, "no_vs" = sum_vs), \(x) x$adj.r.squared)
+adj_r2
+
+cars.AIC <- map_dbl(mod_list, \(x)AIC(x))
+cars.BIC <- map_dbl(mod_list, \(x)BIC(x))
+cars.AIC
+cars.BIC
+```
+- Removing `cyl` 
+
+```{r}
+cars.lm_cyl <- update(cars.lm_vs, ~ . - cyl)
+sum_cyl <- summary(cars.lm_cyl)
+adj_r2 <- c(adj_r2, "no_cyl" = sum_cyl$adj.r.squared)
+adj_r2
+
+mod_list <- c(mod_list, list(no_cyl = cars.lm_cyl))
+cars.AIC <- map_dbl(mod_list, \(x)AIC(x))
+cars.AIC
+```
+
+#### [Q3. Diagnostic plots]{.question}
+
+```{r}
+cars.lm_cyl_out <- tibble(
+  fitted_values = cars.lm_cyl$fitted.values,
+  residuals = cars.lm_cyl$residuals
+)
+
+cars.lm_cyl_out |>
+  ggplot(
+    aes(x = fitted_values, y = residuals)
+  ) +
+  labs(
+    title = "residuals vs fitted values",
+    x = "fitted value",
+    y = "residuals"
+  ) +
+  geom_point()
+
+```
+- qqplot of the residual
+```{r}
+cars.lm_cyl_out |>
+  ggplot(
+    aes(sample = residuals)
+  ) +
+  stat_qq() +
+  stat_qq_line()
+```
+- cooks distance
+
+```{r}
+cars.cd <- tibble(cd = cooks.distance(cars.lm_cyl), idx = seq_along(cd))
+ggplot(cars.cd,
+aes(x = idx, y = cd)
+) +
+  geom_point()
+```
+- Most influencial row
+
+```{r}
+cars.df |> 
+  summarize(n = 3)
+
+```
+
