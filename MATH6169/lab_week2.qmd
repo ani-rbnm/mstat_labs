@@ -1,0 +1,33 @@
+---
+title: MATH6169 - Week2 lab
+format: 
+  html:
+    css: styles.css
+  pdf:
+    include-in-header:
+      text: |
+        \input{preamble.tex}
+---
+
+
+```{r}
+#| include: false
+knitr::opts_chunk$set(
+  results = "markup",
+  collapse = TRUE,
+  comment = ""
+)
+```
+#### Preliminaries
+
+```{r}
+library(purrr)
+library(ggplot2)
+library(dplyr)
+library(lme4)
+library(lmerTest)
+```
+
+#### [Q1. Using the `lm()` function]{.question}
+
+
