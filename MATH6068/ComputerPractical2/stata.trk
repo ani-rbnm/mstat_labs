@@ -1,0 +1,552 @@
+* 00000018
+*! version 1.0.0
+* Do not erase or edit this file
+* It is used by Stata to track the ado and help
+* files you have installed.
+
+S http://fmwww.bc.edu/repec/bocode/t
+N tabout.pkg
+D  8 Jan 2016
+U 1
+d 'TABOUT': module to export publication quality cross-tabulations
+d 
+d  tabout is a table building program for oneway and twoway
+d tables of frequencies and percentages, and for summary tables. It
+d produces publication quality tables for export to a text file.
+d These tables can then be used with spreadsheets, word processors,
+d web browsers or compilers like LaTeX. The tables produced by
+d tabout allow multiple panels so that a number of variables can be
+d included in the one table. tabout also provides standard errors
+d and confidence intervals, as well as a range of table statistics
+d (chi2 etc). The output from tabout matches Stata's tabulate, most
+d of tabstat and some of table.
+d 
+d KW: tables
+d KW: latex
+d KW: html
+d KW: delimited text
+d 
+d Requires: Stata version 9.2
+d 
+d Distribution-Date: 20150112
+d 
+d Author: Ian Watson , Macquarie University, Australia
+d Support: email mail@@ianwatson.com.au
+d 
+f t\tabout.ado
+f t\tabstatout.ado
+f t\tabout.hlp
+f f\figout.ado
+f f\figout.hlp
+e
+S http://fmwww.bc.edu/repec/bocode/e
+N estout.pkg
+D  8 Jan 2016
+U 2
+d 'ESTOUT': module to make regression tables
+d 
+d  estout produces a table of regression results from one or
+d several models for use with spreadsheets, LaTeX, HTML, or a
+d word-processor table. eststo stores a quick copy of the active
+d estimation results for later tabulation. esttab is a wrapper for
+d estout. It displays a pretty looking publication-style regression
+d table without much typing. estadd adds additional results to the
+d e()-returns for one or several models previously fitted and
+d stored. This package subsumes the previously circulated esto,
+d esta, estadd,  and estadd_plus. An earlier version of estout is
+d available  as estout1.
+d 
+d KW: estimates
+d KW: LaTeX
+d KW: HTML
+d KW: word processor
+d KW: output
+d 
+d Requires: Stata version 8.2
+d 
+d Distribution-Date: 20150617
+d 
+d Author: Ben Jann, University of Bern
+d Support: email jann@@soz.unibe.ch
+d 
+f _\_eststo.ado
+f _\_eststo.hlp
+f e\estadd.ado
+f e\estadd.hlp
+f e\estout.ado
+f e\estout.hlp
+f e\eststo.ado
+f e\eststo.hlp
+f e\estpost.ado
+f e\estpost.hlp
+f e\esttab.ado
+f e\esttab.hlp
+e
+S http://www-gene.cimr.cam.ac.uk/staff/clayton/software/stata
+N genassoc.pkg
+D 20 Jan 2016
+U 3
+d Programs for analysis of genetic association studies
+d 
+d David Clayton
+d 
+d Diabetes and Inflammation Laboratory         Tel: 44 (0)1223 762669
+d Cambridge Institute for Medical Research     Fax: 44 (0)1223 762102
+d Wellcome Trust/MRC Building                  david.clayton@cimr.cam.ac.uk
+d Addenbrooke's Hospital, Cambridge, CB2 2XY   www-gene.cimr.cam.ac.uk/clayton/
+d 
+d ginsheet.ado, greshape.ado, gloci.ado, grprare.ado, gtab.ado
+d                 Data management and tabulation
+d _ggtype.ado, _ghtype.ado
+d                 ^egen^ functions to make genotype and haplotype variables
+d labgen.ado      Local function to compute default label namesq
+d tdt.ado, gtrr.ado, pseudocc.ado, pscc.ado, mltdt.ado
+d                 TDT test and various extensions
+d mlpop.ado       Multilocus population-based association test
+d trios.ado, origin.ado
+d                 Parent-of-origin effects
+d pwld.ado        Pairwise linkage disequilibrium measures
+d snp2hap.ado     2-locus haplotypes from unrelated subjects
+d rclogit.ado     Cond logistic regression  with Robust & CLuster options
+f g\ginsheet.ado
+f g\ginsheet.hlp
+f g\greshape.ado
+f g\greshape.hlp
+f g\gloci.ado
+f g\gloci.hlp
+f g\gtab.ado
+f g\gtab.hlp
+f t\tdt.ado
+f t\tdt.hlp
+f _\_ggtype.ado
+f g\gtype.hlp
+f _\_ghtype.ado
+f h\htype.hlp
+f l\labgen.ado
+f g\grprare.ado
+f g\grprare.hlp
+f g\gtrr.ado
+f g\gtrr.hlp
+f t\trios.ado
+f t\trios.hlp
+f o\origin.ado
+f o\origin.hlp
+f p\pseudocc.ado
+f p\pseudocc.hlp
+f p\pwld.ado
+f p\pwld.hlp
+f r\rclogit.ado
+f r\rclogit.hlp
+f p\pscc.ado
+f p\pscc.hlp
+f m\mltdt.ado
+f m\mltdt.hlp
+f m\mlpop.ado
+f m\mlpop.hlp
+f s\snp2hap.ado
+f s\snp2hap.hlp
+e
+S http://www-gene.cimr.cam.ac.uk/staff/clayton/software/stata
+N gamenu.pkg
+D 26 Feb 2016
+U 4
+d Programs for gui interface to the genassoc package
+d 
+d David Clayton
+d 
+d Diabetes and Inflammation Laboratory         Tel: 44 (0)1223 762669
+d Cambridge Institute for Medical Research     Fax: 44 (0)1223 762102
+d Wellcome Trust/MRC Building                  david.clayton@cimr.cam.ac.uk
+d Addenbrooke's Hospital, Cambridge, CB2 2XY   www-gene.cimr.cam.ac.uk/clayton/
+d 
+d gamenu.ado       Program to load drop-down menu item on task bar
+d 
+f g\gamenu.ado
+f g\gamenu.hlp
+f _\_def_pedvars.ado
+f _\_run_grprare.ado
+f _\_run_inprep.ado
+f _\_run_tdt.ado
+f _\_gamenu_error.ado
+f _\_run_gtab.ado
+f _\_run_origin.ado
+f _\_run_trios.ado
+f _\_run_ginsheet.ado
+f _\_run_gtrr.ado
+f _\_run_pscc.ado
+f _\_run_grename.ado
+f _\_run_gtype.ado
+f _\_run_regress.ado
+f _\_run_gresh.ado
+f _\_run_htype.ado
+f _\_run_rtest.ado
+e
+S http://fmwww.bc.edu/RePEc/bocode/v
+N vallist.pkg
+D 24 Mar 2016
+U 5
+d 'VALLIST': module to list distinct values of a variable
+d 
+d vallist puts a list of the distinct values of varname, which may
+d be numeric or string, into returned macro r(list) and displays
+d that list. varname may be numeric or string. vallist is most
+d likely to be useful to programmers dealing with categorical or
+d counted data. This is version 3.1 of the software, updated from
+d that published in STB-60 by Nicholas J. Cox.
+d 
+d Author: Patrick Joly, Industry Canada
+d Support: email pat.joly@@utoronto.ca
+d 
+d Distribution-Date: 20030415
+f v\vallist.ado
+f v\vallist.hlp
+e
+S http://fmwww.bc.edu/repec/bocode/p
+N parmest.pkg
+D 31 Mar 2016
+U 6
+d 'PARMEST': module to create new data set with one observation per parameter of most recent model
+d 
+d  The parmest package has 4 modules: parmest, parmby,
+d parmcip and metaparm. parmest creates an output dataset, with 1
+d observation per parameter of the most recent estimation results,
+d and variables corresponding to parameter names, estimates,
+d standard errors, z- or t-test statistics, P-values, confidence
+d limits and other parameter attributes. parmby is a quasi-byable
+d extension to parmest, which calls an estimation command, and
+d creates a new dataset, with 1 observation per parameter if the
+d by() option is unspecified, or 1 observation per parameter per
+d by-group if the by() option is specified. parmcip inputs
+d variables containing estimates, standard errors and (optionally)
+d degrees of freedom, and computes new variables containing
+d confidence intervals and P-values. metaparm inputs a parmest-type
+d dataset with 1 observation for each of a set of
+d independently-estimated parameters, and outputs a dataset with 1
+d observation for each of a set of linear combinations of these
+d parameters, with confidence intervals and P-values, as for a
+d meta-analysis. The output datasets created by parmest, parmby or
+d metaparm  may be listed to the Stata log and/or saved to a file
+d and/or retained in memory (overwriting any pre-existing dataset).
+d The confidence intervals, P-values and other parameter attributes
+d in the dataset may be listed and/or plotted and/or tabulated.
+d 
+d 
+d Requires: Stata version 11.0
+d 
+d 
+d Author: Roger Newson, National Heart and Lung Institute at Imperial College London
+d Support: email r.newson@@imperial.ac.uk
+d 
+d Distribution-Date: 20151007
+d 
+f p\parmest.ado
+f p\parmest.sthlp
+f m\metaparm_content_opts.sthlp
+f m\metaparm_outdest_opts.sthlp
+f m\metaparm_resultssets.sthlp
+f m\metaparm.ado
+f m\metaparm.sthlp
+f p\parmby_only_opts.sthlp
+f p\parmby.ado
+f p\parmby.sthlp
+f p\parmcip_opts.sthlp
+f p\parmcip.ado
+f p\parmcip.sthlp
+f p\parmest_ci_opts.sthlp
+f p\parmest_outdest_opts.sthlp
+f p\parmest_resultssets.sthlp
+f p\parmest_varadd_opts.sthlp
+f p\parmest_varmod_opts.sthlp
+e
+S http://fmwww.bc.edu/repec/bocode/c
+N coefplot.pkg
+D 11 Apr 2016
+U 7
+d 'COEFPLOT': module to plot regression coefficients and other results
+d 
+d   coefplot plots results from estimation commands or Stata
+d matrices. Results from multiple models or matrices can be
+d combined in a single graph. The default behavior of coefplot is
+d to draw markers for coefficients and horizontal spikes for
+d confidence intervals. However, coefplot can also produce various
+d other types of graphs.
+d 
+d KW: graphics
+d KW: coefficients
+d KW: estimation
+d 
+d Requires: Stata version 11
+d 
+d Distribution-Date: 20150130
+d 
+d Author: Ben Jann, University of Bern
+d Support: email jann@@soz.unibe.ch
+d 
+f c\coefplot.ado
+f c\coefplot.sthlp
+e
+S http://www.stata-journal.com/software/sj6-1
+N st0098.pkg
+D 17 May 2016
+U 8
+d SJ6-1 st0098.  Explained variation for survival models
+d Explained variation for survival models
+d by Patrick Royston, Cancer Group, MRC Clinical Trials Unit
+d Support:  patrick.royston@@ctu.mrc.ac.uk
+d After installation, type help ^str2ph^
+f s\str2d.ado
+f s\str2d.hlp
+f s\str2ph.ado
+f s\str2ph.hlp
+e
+S http://www.stata.com/stb/stb54
+N gr34_3.pkg
+D  6 Jun 2016
+U 9
+d STB-54 gr34_3. An update to drawing Venn diagrams
+d STB insert by  Jens M. Lauritsen: County of Fyn, Denmark
+d Support:   jm.lauritsen@@dadlnet.dk
+d After installation, see help ^venndiag^
+f v\venndiag.ado
+f v\venndiag.hlp
+e
+S http://fmwww.bc.edu/repec/bocode/p
+N pvenn.pkg
+D  6 Jun 2016
+U 10
+d 'PVENN': module to create proportional Venn diagram
+d 
+d   pvenn produces proportioned and positioned Venn diagrams,
+d supporting 2-circle and 3-circle Venn diagrams, as well as
+d 1-circle diagram. pvenn can also draw a rectangle outside all
+d circles to proportionally represent the total population size,
+d when it is possible. Proportional Venn diagrams attempts to make
+d each of the zones (the circles, the outside rectangle, and the
+d set intersections) proportional to the population (value)
+d assigned to the zone.
+d 
+d KW: Venn diagrams
+d 
+d Requires: Stata version 11
+d 
+d Distribution-Date: 20111128
+d 
+d Author: Wenfeng Gong, Duke Center for Health Policy
+d Support: email wenfeng.gong@@duke.edu
+d 
+d Author: Jan Ostermann, Duke Center for Health Policy
+d Support: email
+d 
+f p\pvenn.ado
+f p\pvenn.sthlp
+e
+S http://fmwww.bc.edu/repec/bocode/v
+N venndiag.pkg
+D  6 Jun 2016
+U 11
+d 'VENNDIAG': module to generate Venn diagrams
+d 
+d venndiag produces a so-called Venn diagram of the variables in
+d varlist. The Venn diagram consists of a number of rectangles each
+d corresponding to one of the variables in varlist. The rectangles
+d are arranged such that they overlap and delimit areas. In each
+d area the counts of records is  shown for the relevant combination
+d of varlist. This is version 2.14 of the software for Stata 9 and
+d 10, a revision of that published in STB-47, STB-48 and STB-49.
+d 
+d Author: Jens M. Lauritsen,  University of Southern Denmark, Odense Denmark
+d Support: email jlauritsen@@health.sdu.dk
+d 
+d Distribution-Date: 20090401
+f v\venndiag.ado
+f v\venndiag.hlp
+e
+S http://www.stata-journal.com/software/sj8-2
+N gr0034.pkg
+D 31 Oct 2016
+U 12
+d SJ8-2 gr0034.  Assign values to variables
+d Assign values to variables
+d by Nicholas J. Cox, Durham University, Durham City, UK
+d Support:  n.j.cox@@durham.ac.uk
+d After installation, type help ^labmask^ and ^seqvar^
+f l\labmask.ado
+f l\labmask.hlp
+f s\seqvar.ado
+f s\seqvar.hlp
+e
+S http://www.stata-journal.com/software/sj10-4
+N st0043_2.pkg
+D  1 Nov 2016
+U 13
+d SJ10-4 st0043_2.  Update: Confidence intervals and...
+d Update: Confidence intervals and p-values for delivery to
+d   the end user
+d by Roger Newson, National Heart and Lung Institute,
+d      Imperial College, London, UK
+d Support:  r.newson@@imperial.ac.uk
+d After installation, type help ^descsave^, ^dsconcat^,
+d   ^eclplot^, ^factext^, ^factmerg^, ^factref^, ^ingap^,
+d   ^lincomest^, ^listtex^, ^metaparm^, ^parmby^, ^parmcip^,
+d   ^parmest^, and ^sencode^
+f d\descsave.ado
+f d\descsave.hlp
+f d\dsconcat.ado
+f d\dsconcat.hlp
+f e\eclplot.ado
+f e\eclplot.hlp
+f e\eclplot.dlg
+f f\factext.ado
+f f\factext.hlp
+f f\factmerg.ado
+f f\factmerg.hlp
+f f\factref.ado
+f f\factref.hlp
+f i\ingap.ado
+f i\ingap.hlp
+f l\lincomest.ado
+f l\lincomest.hlp
+f l\lincomest_p.ado
+f l\listtex.ado
+f l\listtex_vars.ado
+f l\listtex_rstyle.ado
+f l\listtex.hlp
+f m\metaparm.ado
+f m\metaparm.hlp
+f m\metaparm_content_opts.hlp
+f m\metaparm_outdest_opts.hlp
+f m\metaparm_resultssets.hlp
+f p\parmby.ado
+f p\parmby.hlp
+f p\parmby_only_opts.hlp
+f p\parmcip.ado
+f p\parmcip.hlp
+f p\parmcip_opts.hlp
+f p\parmest.ado
+f p\parmest.hlp
+f p\parmest_ci_opts.hlp
+f p\parmest_outdest_opts.hlp
+f p\parmest_resultssets.hlp
+f p\parmest_varadd_opts.hlp
+f p\parmest_varmod_opts.hlp
+f s\sencode.ado
+f s\sencode.hlp
+e
+S http://staskolenikov.net/stata
+N polychoric.pkg
+D  8 Nov 2016
+U 14
+d polychoric -- The polychoric correlation package
+d 
+d Author: Stas Kolenikov, skolenik@unc.edu
+d 
+d This package provides routines to estimate
+d the polychoric, tetrachoric, polyserial and biserial
+d correlations and use them in principal component analysis.
+d Current version: 1.4
+f p\polychoric.ado
+f p\polychoricpca.ado
+f p\polych_ll.ado
+f p\polyser_ll.ado
+f p\polychoric.hlp
+f p\polychoricpca.hlp
+e
+S http://www.andrew.cmu.edu/user/bjones/traj
+N traj.pkg
+D 16 Nov 2016
+U 15
+d traj. Group-Based Modeling of Longitudinal Data
+d 
+d {bf: Bobby L. Jones, University of Pittsburgh Medical Center}
+d 
+d {bf: Daniel S. Nagin, Carnegie Mellon University}
+d 
+d 
+d Support: bjones@andrew.cmu.edu
+f t\traj.plugin
+f t\traj.ado
+f t\trajplot.ado
+f m\multtrajplot.ado
+f t\traj.hlp
+f t\trajplot.hlp
+f m\multtrajplot.hlp
+e
+S http://www.sealedenvelope.com
+N hl.pkg
+D 17 Mar 2017
+U 16
+d Hosmer-Lemeshow goodness of fit test
+d Calculate the Hosmer-Lemeshow C or H goodness of fit statistics for
+d binary outcomes after logistic or probit regression or using external
+d predictions. Optionally produce calibration plots.
+d 
+d Author: Gareth Ambler, UCL.
+d Distribution-Date: 25oct2012
+f h\hl.ado
+f h\hl.hlp
+e
+S http://fmwww.bc.edu/repec/bocode/f
+N fsum.pkg
+D  4 Aug 2017
+U 17
+d 'FSUM': module to generate and format summary statistics
+d 
+d fsum is a general purpose summary statistic program. Its display
+d can be  formatted with appropriate labels and variable formats so
+d that its output can be  pasted into a word processor without the
+d need for further alterations within the  word processor. fsum
+d provides summary statistics, including N, # missing, percent
+d missing,  mean, variance, standard deviation, standard error, P1,
+d P5, P25, median, P75, P95, P99,  minimum, maximum, confidence
+d intervals, sum, and percent for 0/1 variables. It can  also
+d display categories of a variable in a manner similar to tabulate.
+d fsum allows  Stata labels and special user-defined labels.
+d Display width is automatically  adjusted for variable and label
+d length. Column width is adjustable by format,  and variable
+d labels are available optionally. nlabel provides a simple way to
+d simultaneously create labels, nlabels, notes, etc.
+d 
+d KW: summarize
+d KW: descriptive
+d KW: mean
+d KW: label
+d 
+d Requires: Stata version 8.2
+d 
+d 
+d Author: Fred Wolfe, National Data Bank for Rheumatic Diseases
+d Support: email fwolfe@@arthritis-research.org
+d 
+d Distribution-Date: 20140506
+d 
+f f\fsum.ado
+f f\fsum.hlp
+f n\nlabel.ado
+f n\nlabel.hlp
+e
+S http://fmwww.bc.edu/repec/bocode/s
+N sampsi_reg.pkg
+D 18 Sep 2017
+U 18
+d 'SAMPSI_REG': module to calculate the sample size/power for linear regression
+d 
+d  sampsi_reg calculates the power and sample size for a simple
+d linear regression. The theory behind this command is described in
+d Dupont and Plummer (1998) Power and Sample Size Calculations for
+d Studies involving  Linear Regression, Controlled Clinical Trials
+d 19:589-601.
+d 
+d KW: sample size
+d KW: sampsi
+d KW: regression
+d 
+d Requires: Stata version 9.0
+d 
+d Distribution-Date: 20110603
+d 
+d Author: Adrian Mander
+d Support: email Adrian.Mander@@mrc-hnr.cam.ac.uk
+d 
+f s\sampsi_reg.ado
+f s\sampsi_reg.hlp
+e
