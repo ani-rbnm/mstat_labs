@@ -473,7 +473,7 @@ get_ridgelasso_tuned <- function(workflow,
                                 penalty_min = -4,
                                 penalty_max = 0,
                                 levels = 20,
-                                metric = "rmse") {
+                                metric = "rsq") {
   penalty_grid <- grid_regular(
     penalty(range = c(penalty_min, penalty_max)),
     levels = levels
@@ -489,14 +489,14 @@ get_ridgelasso_tuned <- function(workflow,
 }
 ```
 ```{r}
-# Get finalized workflow for ridge/lasso. RMSE is used to choose 
+# Get finalized workflow for ridge/lasso. rsq is used to choose 
 # the best
 get_ridgelasso_finalized_workflow <- function(workflow,
                                 resamples,
                                 penalty_min = -4,
                                 penalty_max = 0,
                                 levels = 20,
-                                metric = "rmse") {
+                                metric = "rsq") {
   penalty_grid <- grid_regular(
     penalty(range = c(penalty_min, penalty_max)),
     levels = levels
@@ -537,7 +537,7 @@ get_ridgelasso_finalized_workflow <- function(workflow,
 #    resamples = cv_splits
 #  )
 #autoplot(lass_tuned)
-#show_best(lass_tuned, metric = "rmse", n = 20)
+#show_best(lass_tuned, metric = "rsq", n = 20)
 #
 #lambda <- tibble(
 # penalty = 0.01
@@ -559,7 +559,7 @@ get_elasticnet_tuned <- function(workflow,
                                 penalty_min = -4,
                                 penalty_max = 0,
                                 levels = 5,
-                                metric = "rmse") {
+                                metric = "rsq") {
   penalty_grid <- grid_regular(
     penalty(range = c(penalty_min, penalty_max)),
     mixture(),
@@ -582,7 +582,7 @@ get_elasticnet_finalized_workflow <- function(workflow,
                                 penalty_min = -4,
                                 penalty_max = 0,
                                 levels = 5,
-                                metric = "rmse") {
+                                metric = "rsq") {
   penalty_grid <- grid_regular(
     penalty(range = c(penalty_min, penalty_max)),
     mixture(),
@@ -624,7 +624,7 @@ get_elasticnet_finalized_workflow <- function(workflow,
 #    resamples = cv_splits
 #  )
 #autoplot(elasticnet_tuned)
-#show_best(elasticnet_tuned, metric = "rmse", n = 20)
+#show_best(elasticnet_tuned, metric = "rsq", n = 20)
 #
 #lambda <- tibble(
 #  penalty = 0.01,
@@ -670,13 +670,13 @@ get_logistic_finalized_workflow <- function(workflow,
 ```{r}
 
 # Get finalized workflow for pruned regression decision tree. 
-# rmse is used to select the best
+# rsq is used to select the best
 get_pruned_tree_finalized_workflow <- function(workflow,
                                                resamples,
                                                cp_min = -5,
                                                cp_max = -1,
                                                levels = 10,
-                                               metric = "rmse") {
+                                               metric = "rsq") {
   param_grid <- grid_regular(
     cost_complexity(range = c(cp_min, cp_max)),
     levels = levels
@@ -685,8 +685,8 @@ get_pruned_tree_finalized_workflow <- function(workflow,
   tuned <- tune_grid(
     workflow,
     resamples = resamples,
-    grid = param_grid,
-    metrics = metric_set(rmse)
+    grid = param_grid
+    # metrics = metric_set(rsq)
   )
 
   best_params <- tuned |>
@@ -800,14 +800,14 @@ get_nn_class_finalized_workflow <- function(workflow,
 
 ```{r}
 # Get finalized workflow for regression using neural net . 
-# rmse is used to select the best
+# rsq is used to select the best
 
 get_nn_reg_finalized_workflow <- function(workflow,
                                           resamples,
                                           hidden_units_min = 1,
                                           hidden_units_max = 20,
                                           levels = 5,
-                                          metric = "rmse") {
+                                          metric = "rsq") {
   param_grid <- grid_regular(
     hidden_units(
       range = c(hidden_units_min,
@@ -819,8 +819,8 @@ get_nn_reg_finalized_workflow <- function(workflow,
   tuned <- tune_grid(
     workflow,
     resamples = resamples,
-    grid = param_grid,
-    metrics = metric_set(rmse)
+    grid = param_grid
+    # metrics = metric_set(rsq)
   )
 
   best_params <- select_best(tuned, metric = metric)
@@ -833,7 +833,7 @@ get_nn_reg_finalized_workflow <- function(workflow,
 
 ```{r}
 # Get finalized workflow for regression using neural net . penalty and hidden units tuned.
-# rmse is used to select the best
+# rsq is used to select the best
 
 get_nn_reg_finalized_workflow_v2 <- function(workflow,
                                              resamples,
@@ -841,7 +841,7 @@ get_nn_reg_finalized_workflow_v2 <- function(workflow,
                                              hidden_units_max = 20,
                                              penalty_range = c(-6, -1),
                                              levels = 5,
-                                             metric = "rmse") {
+                                             metric = "rsq") {
 
   param_grid <- grid_regular(
     hidden_units(
@@ -857,8 +857,8 @@ get_nn_reg_finalized_workflow_v2 <- function(workflow,
   tuned <- tune_grid(
     workflow,
     resamples = resamples,
-    grid = param_grid,
-    metrics = metric_set(rmse)
+    grid = param_grid
+    # metrics = metric_set(rsq)
   )
 
   best_params <- select_best(
