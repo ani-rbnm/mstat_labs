@@ -53,5 +53,5 @@ renv/
 *renv*
 .Rprofile
 *files/
-*.html
+#*.html
 *.pdf

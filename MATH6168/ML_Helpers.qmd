@@ -1,0 +1,1428 @@
+---
+title: "Machine Learning Helper functions"
+format:
+  html:
+    self-contained: true
+    toc: true
+    code-fold: false
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(knitr)
+library(glmnet)
+library(discrim)
+library(naivebayes)
+library(rpart)
+library(rpart.plot)
+library(kernlab)
+library(nnet)
+library(janitor)
+library(fairml)
+library(ISLR2)
+```
+
+### Step 1 - Split Data
+
+
+```{r}
+
+# Function to split data into train, test, and optionally validation
+make_data_split <- function(data,
+                            train = 0.8,
+                            val = NULL,
+                            test = NULL,
+                            strata = NULL) {
+  data <- data |> drop_na()
+
+
+  # Split data into validation if needed
+  if (is.null(val)) {
+    split <- initial_split(
+      data,
+      prop = train,
+      strata = {{ strata }}
+    )
+
+    return(list(
+      type = "initial_split",
+      train = training(split),
+      test = testing(split)
+    ))
+  }
+
+  # Ensure incorrect splits are not provided when explicitly mentioned
+  if (is.null(test)) {
+    test <- 1 - train - val
+  }
+
+  if (abs(train + val + test - 1) > 1e-8) {
+    stop("`train`, `val`, and `test` must sum to 1.")
+  }
+
+  # Validation split if asked for 
+  split <- initial_validation_split(
+    data,
+    prop = c(train, val),
+    strata = {{ strata }}
+  )
+
+  list(
+    type = "initial_validation_split",
+    validation_resamples = validation_set(split),
+    train = training(split),
+    validation = validation(split),
+    test = testing(split)
+  )
+}
+```
+#### Step 1 - Use Example:
+```{r}
+#splits <- make_data_split(penguins, train = 0.8)
+#
+#splits$train
+#splits$test
+
+```
+
+### Step 2 - Preprocessing - Creating Recipe
+
+#### 2.1 - Normal Recipe
+```{r}
+
+# Function to create recipe
+make_recipe <- function(training_data,
+                        outcome,
+                        id_vars = NULL) {
+  # Outcome variable
+  outcome <- enquo(outcome)
+
+  # building recipe with all predictors included
+  rec <- recipe(
+    training_data,
+    formula = as.formula(paste(quo_name(outcome), "~ ."))
+  )
+
+  # remove predictors mentioned in the id_vars parameter
+  if (!is.null(id_vars)) {
+    rec <- rec |>
+      update_role(
+        all_of(id_vars),
+        new_role = "ID"
+      )
+  }
+
+  rec |>
+    step_normalize(all_numeric_predictors()) |>
+    step_dummy(all_nominal_predictors())
+}
+```
+#### 2.2 tree recipe
+
+```{r}
+# Function to construct tree recipe. Key is not to normalise and create dummy variables
+make_tree_recipe <- function(training_data,
+                             outcome,
+                             id_vars = NULL) {
+  outcome <- enquo(outcome)
+
+  rec <- recipe(
+    training_data,
+    formula = as.formula(paste(quo_name(outcome), "~ ."))
+  )
+
+  if (!is.null(id_vars)) {
+    rec <- rec |>
+      update_role(
+        all_of(id_vars),
+        new_role = "ID"
+      )
+  }
+
+  rec
+}
+```
+#### 2.3 Adding pred recipe
+
+```{r}
+# Function to create recipe with provided predictors only
+make_recipe_addpred <- function(training_data,
+                                outcome,
+                                preds = NULL,
+                                id_vars = NULL) {
+  outcome <- enquo(outcome)
+
+  # Build with the provided predictors only
+  rhs <- if (is.null(preds)) {
+    "."
+  } else {
+    paste(preds, collapse = " + ")
+  }
+
+  rec <- recipe(
+    training_data,
+    formula = as.formula(
+      paste(quo_name(outcome), "~", rhs)
+    )
+  )
+
+  # Assign ID roles if supplied
+  if (!is.null(id_vars)) {
+    rec <- rec |>
+      update_role(
+        all_of(id_vars),
+        new_role = "ID"
+      )
+  }
+
+  rec |>
+    step_normalize(all_numeric_predictors()) |>
+    step_dummy(all_nominal_predictors())
+}
+```
+#### Step 2 - Use
+
+
+```{r}
+#penguins_recipe <- make_recipe(
+#  training_data = penguins_train,
+#  outcome = body_mass_g,
+#  id_vars = c("island", "sex", "year")
+#)
+#
+#penguins_recipe
+```
+
+### Step 3 - Model Selection
+
+#### 1. `linear_reg` model with `lm` engine
+```{r}
+
+# Selecting lm model
+make_lm_model <- function() {
+  linear_reg() |>
+    set_engine("lm")
+}
+```
+
+#### 2. Tuned lasso - `linear_reg` with `glmnet`
+
+```{r}
+# Creating lasso model
+make_lasso_model <- function() {
+  linear_reg(
+    penalty = tune(),   # lambda
+    mixture = 1         # LASSO (L1)
+  ) |>
+    set_engine("glmnet")
+}
+```
+
+#### 3. Tuned ridge - `linear_reg` with `glmnet`
+
+```{r}
+# Creating ridge model
+make_ridge_model <- function() {
+  linear_reg(
+    penalty = tune(),   # lambda
+    mixture = 0         # Ridge (L2)
+  ) |>
+    set_engine("glmnet")
+}
+```
+#### 4. Tuned elasticnet - `linear_reg` with `glmnet`
+
+
+```{r}
+# Creating elasticnet model
+make_elasticnet_model <- function() {
+  linear_reg(
+    penalty = tune(),  # lambda
+    mixture = tune()   # alpha
+  ) |>
+    set_engine("glmnet")
+}
+```
+#### 5. Logistic model
+```{r}
+
+# Creating logistic regression model with 2 params tuned
+make_logistic_model <- function() {
+  logistic_reg(
+    penalty = tune(),  # lambda
+    mixture = tune()   # alpha
+  ) |>
+    set_engine("glmnet")
+}
+```
+#### 6. LDA
+
+
+```{r}
+# LDA model
+make_lda <- function() {
+  discrim_linear() 
+}
+```
+
+#### 7. QDA
+
+```{r}
+# QDA model
+make_qda <- function() {
+  discrim_quad() 
+}
+```
+
+#### 8. Naive Bayes
+
+```{r}
+# Native Bayes model
+make_naive_bayes <- function() {
+  naive_Bayes() |>
+  set_engine("naivebayes")
+}
+```
+
+#### 9. Decision Tree - Classification
+
+
+```{r}
+# Classification decision tree model
+make_class_tree <- function(minsplit = 5) {
+  decision_tree() |>
+    set_mode("classification") |>
+    set_engine(
+      "rpart",
+      control = list(minsplit = minsplit)
+    )
+}
+
+```
+
+#### 10. Decision Tree - Regression - CCP for pruning
+
+
+```{r}
+# Regression decision tree model
+make_reg_tree <- function() {
+  # decision_tree() |>
+  decision_tree(
+    cost_complexity = tune()
+  ) |>
+    set_mode("regression") |>
+    set_engine(
+      "rpart"
+    )
+}
+
+```
+
+#### 11. Linear SVM model
+
+
+```{r}
+# linear SVM model
+make_linear_svm_model <- function() {
+  svm_linear(cost = tune()) |>
+    set_mode("classification") |>
+    set_engine("kernlab")
+}
+```
+
+#### 12. Non-linear SVM model
+
+
+```{r}
+# Non-linear SVM model
+make_rbf_svm_model <- function() {
+  svm_rbf(
+    cost = tune(),
+    # rbf_sigma = tune()
+    rbf_sigma = 1
+  ) |>
+    set_mode("classification") |>
+    set_engine("kernlab")
+}
+```
+
+#### 13. Neural net - Classification model
+
+
+```{r}
+# Neural net classification model
+make_nn_class_model <- function() {
+  mlp(
+    hidden_units = tune()
+  ) |>
+    set_mode("classification") |>
+    set_engine("nnet")
+}
+```
+
+#### 14. Neural net - Regression model
+
+
+```{r}
+# Neural net regression model
+make_nn_reg_model <- function() {
+  mlp(
+    hidden_units = tune()
+  ) |>
+    set_mode("regression") |>
+    set_engine("nnet")
+}
+```
+```{r}
+# Neural net regression model with both penalty and hidden_units tuned
+make_nn_reg_model_v2 <- function() {
+  mlp(
+    penalty = tune(), 
+    hidden_units = tune()
+  ) |>
+    set_mode("regression") |>
+    set_engine("nnet")
+}
+```
+### Step 4 - Getting workflow
+
+
+```{r}
+# Creating workflow
+make_workflow <- function(recipe, model) {
+  workflow() |>
+    add_model(model) |>
+    add_recipe(recipe)
+}
+```
+
+#### use
+
+
+```{r}
+#lm_wf <- make_workflow(
+#  recipe = penguins_recipe,
+#  model = make_lm_model()
+#)
+#
+#lm_wf
+```
+
+### Step 4.1 - Getting validation sets
+
+#### Step 4.1.1 - v fold cross validation
+
+
+```{r}
+# V-Fold cross validation
+make_vfold_cv <- function(data,
+                          v = 10,
+                          repeats = 5,
+                          strata = NULL) {
+
+  strata <- enquo(strata)
+
+  vfold_cv(
+    data = data,
+    v = v,
+    repeats = repeats,
+    strata = !!strata
+  )
+}
+```
+
+#### Step 4.1.2 - LOOCV cross validation
+
+
+```{r}
+# Leave-one-out-cross-validation
+make_loocv <- function(data) {
+  loo_cv(data)
+}
+```
+#### Step 4.1.3 - Bootstrapping
+
+```{r}
+# Bootstrap cross validation
+make_bootstraps <- function(data,
+                            times = 100,
+                            strata = NULL) {
+
+  strata <- enquo(strata)
+
+  bootstraps(
+    data = data,
+    times = times,
+    strata = !!strata
+  )
+}
+```
+### Step 4.2 Getting tuned workflow options
+
+#### Step 4.2.1 tuned ridge/lasso workflow
+
+```{r}
+# Function to get tuned results for ridge/lasso
+get_ridgelasso_tuned <- function(workflow,
+                                resamples,
+                                penalty_min = -4,
+                                penalty_max = 0,
+                                levels = 20,
+                                metric = "rmse") {
+  penalty_grid <- grid_regular(
+    penalty(range = c(penalty_min, penalty_max)),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = penalty_grid
+  )
+
+  tuned
+}
+```
+```{r}
+# Get finalized workflow for ridge/lasso. RMSE is used to choose 
+# the best
+get_ridgelasso_finalized_workflow <- function(workflow,
+                                resamples,
+                                penalty_min = -4,
+                                penalty_max = 0,
+                                levels = 20,
+                                metric = "rmse") {
+  penalty_grid <- grid_regular(
+    penalty(range = c(penalty_min, penalty_max)),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = penalty_grid
+  )
+
+  best_params <- select_best(tuned, metric = metric)
+
+  finalize_workflow(workflow, best_params)
+}
+```
+
+
+
+* USE 
+
+```{r}
+#lasso_wf <-
+#  make_workflow(
+#    recipe = penguins_recipe,
+#    model = make_lasso_model()
+#  )
+#
+#final_lasso_wf <-
+#  get_ridgelasso_finalized_workflow(
+#    workflow = lasso_wf,
+#    resamples = cv_splits
+#  )
+#
+#lass_tuned <-
+#  get_ridgelasso_tuned(
+#    workflow = lasso_wf,
+#    resamples = cv_splits
+#  )
+#autoplot(lass_tuned)
+#show_best(lass_tuned, metric = "rmse", n = 20)
+#
+#lambda <- tibble(
+# penalty = 0.01
+#)
+#
+#final_lasso_wflow <- lasso_wf |>
+# finalize_workflow(lambda)
+#final_lasso_wflow
+```
+
+
+
+#### 4.2.2 Tuned elasticnet workflow
+
+```{r}
+# Get tuned results for elasticnet
+get_elasticnet_tuned <- function(workflow,
+                                resamples,
+                                penalty_min = -4,
+                                penalty_max = 0,
+                                levels = 5,
+                                metric = "rmse") {
+  penalty_grid <- grid_regular(
+    penalty(range = c(penalty_min, penalty_max)),
+    mixture(),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = penalty_grid
+  )
+
+  tuned
+}
+```
+```{r}
+# Get finalised workflow for regression based on elasticnet
+get_elasticnet_finalized_workflow <- function(workflow,
+                                resamples,
+                                penalty_min = -4,
+                                penalty_max = 0,
+                                levels = 5,
+                                metric = "rmse") {
+  penalty_grid <- grid_regular(
+    penalty(range = c(penalty_min, penalty_max)),
+    mixture(),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = penalty_grid
+  )
+
+  best_params <- select_best(tuned, metric = metric)
+
+  finalize_workflow(workflow, best_params)
+}
+```
+
+
+
+* USE 
+
+```{r}
+#elasticnet_wf <-
+#  make_workflow(
+#    recipe = penguins_recipe,
+#    model = make_elasticnet_model()
+#  )
+#
+#final_elasticnet_wf <-
+#  get_elasticnet_finalized_workflow(
+#    workflow = elasticnet_wf,
+#    resamples = cv_splits
+#  )
+#
+#elasticnet_tuned <-
+#  get_elasticnet_tuned(
+#    workflow = lasso_wf,
+#    resamples = cv_splits
+#  )
+#autoplot(elasticnet_tuned)
+#show_best(elasticnet_tuned, metric = "rmse", n = 20)
+#
+#lambda <- tibble(
+#  penalty = 0.01,
+#  mixture = 0.5
+#)
+#
+#final_elasticnet_wflow <- elasticnet_wf |>
+# finalize_workflow(lambda)
+#final_elasticnet_wflow
+```
+#### 4.2.3 Tuned logistic regression workflow
+
+```{r}
+# Get finalized workflow for logistic regression. roc is used to select the best
+get_logistic_finalized_workflow <- function(workflow,
+                                resamples,
+                                penalty_min = -4,
+                                penalty_max = 0,
+                                levels = 5,
+                                metric = "roc_auc") {
+  penalty_grid <- grid_regular(
+    penalty(range = c(penalty_min, penalty_max)),
+    mixture(),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = penalty_grid,
+    metrics = metric_set(accuracy, roc_auc, pr_auc)
+  )
+
+  best_params <- select_best(tuned, metric = metric)
+
+  finalize_workflow(workflow, best_params)
+}
+```
+
+#### 4.2.4 Pruned Regression Workflow
+
+
+```{r}
+
+# Get finalized workflow for pruned regression decision tree. 
+# rmse is used to select the best
+get_pruned_tree_finalized_workflow <- function(workflow,
+                                               resamples,
+                                               cp_min = -5,
+                                               cp_max = -1,
+                                               levels = 10,
+                                               metric = "rmse") {
+  param_grid <- grid_regular(
+    cost_complexity(range = c(cp_min, cp_max)),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = param_grid,
+    metrics = metric_set(rmse)
+  )
+
+  best_params <- tuned |>
+    select_by_one_std_err(
+      metric = metric,
+      desc(cost_complexity)
+    )
+
+  finalize_workflow(workflow, best_params)
+}
+```
+#### 4.2.5 - Linear svm finalised workflow
+
+
+```{r}
+# Get finalized workflow for linear svm. 
+# roc is used to select the best
+
+get_linear_svm_finalized_workflow <- function(workflow,
+                                              resamples,
+                                              cost_min = -5,
+                                              cost_max = 5,
+                                              levels = 20,
+                                              metric = "roc_auc") {
+  cost_grid <- grid_regular(
+    cost(range = c(cost_min, cost_max)),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = cost_grid,
+    metrics = metric_set(accuracy, roc_auc, pr_auc)
+  )
+
+  best_params <- select_best(tuned, metric = metric)
+
+  finalize_workflow(workflow, best_params)
+}
+```
+
+#### 4.2.6 - Non-linear SVM finalized workflow
+
+
+```{r}
+# Get finalized workflow for non-linear svm. 
+# roc is used to select the best
+
+get_nonlinear_svm_finalized_workflow <- function(workflow,
+                                                 resamples,
+                                                 cost_min = -3,
+                                                 cost_max = 3,
+                                                 # sigma_min = -4,
+                                                 # sigma_max = -1,
+                                                 levels = 5,
+                                                 metric = "roc_auc") {
+  param_grid <- grid_regular(
+    cost(range = c(cost_min, cost_max)),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = param_grid,
+    metrics = metric_set(accuracy, roc_auc, pr_auc),
+    control = control_grid(save_pred = TRUE)
+  )
+
+  best_params <- select_best(tuned, metric = metric)
+
+  finalize_workflow(workflow, best_params)
+}
+```
+
+#### 4.2.7 - NN Classification finalized workflow
+
+
+```{r}
+# Get finalized workflow for classification using neural net . 
+# roc is used to select the best
+
+get_nn_class_finalized_workflow <- function(workflow,
+                                            resamples,
+                                            hidden_units_min = 1,
+                                            hidden_units_max = 20,
+                                            levels = 5,
+                                            metric = "roc_auc") {
+  param_grid <- grid_regular(
+    hidden_units(range = c(hidden_units_min,
+                           hidden_units_max)),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = param_grid,
+    metrics = metric_set(accuracy, roc_auc, pr_auc)
+  )
+
+  best_params <- select_best(tuned, metric = metric)
+
+  finalize_workflow(workflow, best_params)
+}
+```
+
+#### 4.2.8 - NN Regression finalized workflow
+
+
+```{r}
+# Get finalized workflow for regression using neural net . 
+# rmse is used to select the best
+
+get_nn_reg_finalized_workflow <- function(workflow,
+                                          resamples,
+                                          hidden_units_min = 1,
+                                          hidden_units_max = 20,
+                                          levels = 5,
+                                          metric = "rmse") {
+  param_grid <- grid_regular(
+    hidden_units(
+      range = c(hidden_units_min,
+                hidden_units_max)
+    ),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = param_grid,
+    metrics = metric_set(rmse)
+  )
+
+  best_params <- select_best(tuned, metric = metric)
+
+  finalize_workflow(workflow, best_params)
+}
+```
+
+### 4.2.9 - NN Regression finalized workflow - V2 - tuned 2 vars
+
+```{r}
+# Get finalized workflow for regression using neural net . penalty and hidden units tuned.
+# rmse is used to select the best
+
+get_nn_reg_finalized_workflow_v2 <- function(workflow,
+                                             resamples,
+                                             hidden_units_min = 1,
+                                             hidden_units_max = 20,
+                                             penalty_range = c(-6, -1),
+                                             levels = 5,
+                                             metric = "rmse") {
+
+  param_grid <- grid_regular(
+    hidden_units(
+      range = c(hidden_units_min,
+                hidden_units_max)
+    ),
+    penalty(
+      range = penalty_range
+    ),
+    levels = levels
+  )
+
+  tuned <- tune_grid(
+    workflow,
+    resamples = resamples,
+    grid = param_grid,
+    metrics = metric_set(rmse)
+  )
+
+  best_params <- select_best(
+    tuned,
+    metric = metric
+  )
+
+  finalize_workflow(
+    workflow,
+    best_params
+  )
+}
+```
+### Step 5 - Fitting Model
+
+
+```{r}
+# Getting model fit
+fit_model <- function(workflow, training_data) {
+  fit(workflow, data = training_data)
+}
+```
+#### Use
+
+
+```{r}
+#fitted_wf <- fit_model(
+#  workflow = lm_wf,
+#  training_data = penguins_train
+#)
+#
+#fitted_wf
+```
+
+### Step 6 - Predict
+
+
+```{r}
+# model augmented with test data
+augment_model <- function(fit_object, new_data) {
+  augment(fit_object, new_data = new_data)
+}
+```
+
+#### Use
+
+
+```{r}
+#augmented_test <- augment_model(
+#  fit_object = fitted_wf,
+#  new_data = penguins_test
+#)
+#
+#augmented_test
+```
+
+### Step 7 - Write Results in file
+
+
+```{r}
+# Write specified column into csv file
+write_augmented_csv <- function(data,
+                                 file_path,
+                                 cols = NULL,
+                                 col_names = NULL) {
+
+  out <- data
+
+  # Select columns if provided
+  if (!is.null(cols)) {
+    out <- out |> select(all_of(cols))
+  }
+
+  # Rename columns if provided
+  if (!is.null(col_names)) {
+    if (length(col_names) != ncol(out)) {
+      stop("`col_names` must match number of selected columns.")
+    }
+    names(out) <- col_names
+  }
+
+  write_csv(out, file_path)
+
+  invisible(out)
+}
+```
+
+#### Use 
+
+
+```{r}
+#augmented_test |>
+#  write_augmented_csv("predictions.csv")
+#
+#augmented_test |>
+#  write_augmented_csv(
+#    file_path = "predictions.csv",
+#    cols = c("body_mass_g", ".pred")
+#  )
+#
+#augmented_test |>
+#  write_augmented_csv(
+#    file_path = "predictions.csv",
+#    cols = c("body_mass_g", ".pred"),
+#    col_names = c("actual", "result")
+#  )
+#
+#make_workflow(
+#  model = make_lm_model(),
+#  recipe = penguins_recipe
+#) |>
+#  fit_model(training_data = penguins_train) |>
+#  augment_model(test_data = penguins_test) |>
+#  write_augmented_csv(
+#    file_path = "predictions.csv",
+#    cols = c("body_mass_g", ".pred"),
+#    col_names = c("actual", "result")
+#  )
+#
+
+```
+
+
+### Full Workflows
+
+#### 1. lm model
+
+
+```{r}
+library(palmerpenguins)
+data("penguins", package = "palmerpenguins")
+head(penguins) |>
+kable()
+
+splits <-
+  penguins |>
+    make_data_split(train = 0.6)
+head(splits$train)
+out <-
+  splits$train |>
+    make_recipe(
+      outcome = body_mass_g,
+      id_vars = c("island", "sex", "year")
+    ) |>
+    make_workflow(
+      model = make_lm_model()
+    ) |>
+    fit_model(
+      training_data = splits$train
+    ) |>
+    augment_model(
+      new_data = splits$test
+    )
+
+out |>
+  write_augmented_csv(
+    file_path = "test.csv",
+    cols = ".pred",
+    col_names = "result"
+  )
+  
+
+```
+
+#### 2. glm - elasticnet with tuning - Custom Recipe
+
+
+```{r}
+data(ames, package = "modeldata")
+ames <- ames |>
+ mutate(Sale_Price = log10(Sale_Price))
+
+splits <-
+  ames |>
+    make_data_split(train = 0.8)
+
+ames_recipe <- 
+  recipe(Sale_Price ~ Gr_Liv_Area + Year_Built + Longitude + Latitude, data = splits$train) |>
+  step_ns(Longitude, Latitude, deg_free = 5) |>
+  step_normalize(all_numeric_predictors())
+
+ames_folds <- 
+  splits$train |>
+    make_vfold_cv(repeats = 1)
+
+out <-
+    make_workflow(
+      recipe = ames_recipe,
+      model = make_elasticnet_model()
+    ) |>
+    get_elasticnet_finalized_workflow(
+      resamples = ames_folds
+    ) |>
+    fit_model(
+      training_data = splits$train
+    ) |>
+    augment_model(
+      new_data = splits$test
+    )
+
+out |> rmse(Sale_Price, .pred)
+
+```
+
+#### 3. logistic_reg model - Not tuned
+
+```{r}
+data(german.credit, package = "fairml")
+gcredit <- as_tibble(german.credit)
+
+splits <-
+  gcredit |>
+    make_data_split(train = 0.8, strata = Credit_risk)
+
+out <-
+  splits$train |>
+    make_recipe(
+      outcome = Credit_risk,
+      # id_vars = c("island", "sex", "year")
+    ) |>
+    make_workflow(
+      model = logistic_reg() 
+    ) |>
+    fit_model(
+      training_data = splits$train
+    ) |>
+    augment_model(
+      new_data = splits$test
+    )
+
+glimpse(out)
+```
+###### Confusion matrix
+
+
+```{r}
+gcredit_cm <-
+  out |>
+    conf_mat(Credit_risk, .pred_class)
+gcredit_cm
+gcredit_cm |> summary()
+
+```
+
+#### 3. logistic_reg model - tuned
+
+```{r}
+data(german.credit, package = "fairml")
+gcredit <- as_tibble(german.credit)
+
+splits <-
+  gcredit |>
+    make_data_split(train = 0.8, strata = Credit_risk)
+
+gcredit_folds <- 
+  splits$train |>
+    make_vfold_cv(strata = Credit_risk)
+
+out <-
+  splits$train |>
+    make_recipe(
+      outcome = Credit_risk,
+    ) |>
+    make_workflow(
+      model = make_logistic_model() 
+    ) |>
+    get_logistic_finalized_workflow(
+      resamples = gcredit_folds
+    ) |>
+    fit_model(
+      training_data = splits$train
+    ) |>
+    augment_model(
+      new_data = splits$test
+    )
+
+```
+Testing metrics
+
+```{r}
+
+metric_set_en <- metric_set(accuracy, roc_auc, pr_auc)
+out |> metric_set_en(Credit_risk, estimate = .pred_class, .pred_BAD )
+levels(gcredit$Credit_risk)
+```
+#### 4. LDA/QDA
+
+
+```{r}
+data(german.credit, package = "fairml")
+gcredit <- as_tibble(german.credit)
+
+splits <-
+  gcredit |>
+    make_data_split(train = 0.8, strata = Credit_risk)
+
+out <-
+  splits$train |>
+    make_recipe(
+      outcome = Credit_risk,
+      id_vars = c("Account_status", "Credit_history", "Purpose", "Savings_bonds", 
+        "Present_employment_since", "Other_debtors_guarantors", "Property",
+        "Other_installment_plans", "Housing", "Job", "Telephone", "Foreign_worker",
+      "Gender")
+    ) |>
+    make_workflow(
+      model = make_qda() 
+    ) |>
+    fit_model(
+      training_data = splits$train
+    ) |>
+    augment_model(
+      new_data = splits$test
+    )
+
+```
+```{r}
+
+metric_set_en <- metric_set(accuracy, roc_auc, pr_auc)
+out |> metric_set_en(Credit_risk, estimate = .pred_class, .pred_BAD )
+cm <- out |> conf_mat(truth = Credit_risk, estimate = .pred_class)
+cm
+cm |> summary()
+```
+
+#### 5. Decision Tree - Classification
+
+
+```{r}
+penguins <- penguins |> drop_na()
+
+splits <-
+  penguins |>
+    make_data_split(train = 0.6, strata = species)
+
+# gcredit_folds <- 
+  # splits$train |>
+    # make_vfold_cv(strata = Credit_risk)
+
+out_fit <-
+  splits$train |>
+    make_tree_recipe(
+      outcome = species,
+      id_vars = c("island", "flipper_length_mm", "sex")
+    ) |>
+    make_workflow(
+      model = make_class_tree() 
+    ) |>
+    fit_model(
+      training_data = splits$train
+    )
+penguin_rpart <- out_fit |> extract_fit_engine()
+penguin_rpart |> print()
+penguin_rpart |> rpart.plot()
+
+out <-
+  splits$train |>
+    make_tree_recipe(
+      outcome = species,
+      id_vars = c("island", "flipper_length_mm", "sex")
+    ) |>
+    make_workflow(
+      model = make_class_tree() 
+    ) |>
+    # get_logistic_finalized_workflow(
+      # resamples = gcredit_folds
+    # ) |>
+    fit_model(
+      training_data = splits$train
+    ) |>
+    augment_model(
+      new_data = splits$test
+    )
+
+out
+metric_set_en <- metric_set(accuracy, roc_auc, pr_auc)
+out |> metric_set_en(species, estimate = .pred_class, .pred_Adelie, .pred_Chinstrap, .pred_Gentoo)
+cm <- out |> conf_mat(truth = species, estimate = .pred_class)
+cm
+cm |> summary()
+
+```
+#### Decision Tree - Pruned regression
+
+
+```{r}
+data("Hitters", package = "ISLR2")
+hitters <-
+ Hitters |> drop_na() |>
+    mutate(Salary = log10(Salary)) |>
+    tibble()
+
+splits <-
+  hitters |>
+    make_data_split(train = 0.8)
+
+hitters_folds <- 
+  splits$train |>
+    make_vfold_cv()
+
+
+out <-
+  splits$train |>
+    make_tree_recipe(
+      outcome = Salary
+    ) |>
+    make_workflow(
+      model = make_reg_tree()
+    ) |>
+    get_pruned_tree_finalized_workflow(resamples = hitters_folds) |>
+    fit_model(
+      training_data = splits$train
+    ) |>
+    augment_model(
+      new_data = splits$test
+    )
+
+out |> rmse(truth = Salary, estimate = .pred)
+```
+
+#### Linear SVM - Classification - tuned
+
+
+```{r}
+penguins <- penguins |>
+ drop_na() |>
+ mutate(
+  y = case_when(
+   species == "Gentoo" ~ "Gentoo (1)",
+   .default = "Not Gentoo (0)",
+   .ptype = factor(levels = c("Not Gentoo (0)", "Gentoo (1)"))
+  ) 
+ )
+
+splits <-
+  penguins |>
+    make_data_split(train = 0.8, strata = y)
+
+p_folds <- 
+  splits$train |>
+    make_vfold_cv(strata = y)
+
+out <-
+  splits$train |>
+    make_recipe(
+      outcome = y,
+      id_vars = c("island", "flipper_length_mm", "sex", "species", "body_mass_g")
+    ) |>
+    make_workflow(
+      model = make_linear_svm_model() 
+    ) |>
+    get_linear_svm_finalized_workflow(resamples = p_folds) |>
+    fit_model(
+      training_data = splits$train
+    )|>
+    augment_model(
+      new_data = splits$test
+    )
+
+```
+
+```{r}
+out
+metric_set_en <- metric_set(accuracy, roc_auc, pr_auc)
+out |> metric_set_en(truth = y, estimate = .pred_class, `.pred_Not Gentoo (0)`)
+cm <- out |> conf_mat(truth = y, estimate = .pred_class)
+cm
+cm |> summary()
+
+
+```
+#### Non Linear SVM - Classification - tuned
+
+```{r}
+penguins <- penguins |>
+ drop_na() |>
+ mutate(
+  y = case_when(
+   species == "Chinstrap" ~ "Chinstrap (1)",
+   .default = "Not Chinstrap (0)",
+   .ptype = factor(levels = c("Not Chinstrap (0)", "Chinstrap (1)"))
+  ) 
+)
+
+
+splits <-
+  penguins |>
+    make_data_split(train = 0.8, strata = y)
+
+p_folds <- 
+  splits$train |>
+    make_vfold_cv(strata = y)
+
+out <-
+  splits$train |>
+    make_recipe(
+      outcome = y,
+      id_vars = c("island", "flipper_length_mm", "sex", "species", "body_mass_g")
+    ) |>
+    make_workflow(
+      model = make_rbf_svm_model() 
+    ) |>
+    get_nonlinear_svm_finalized_workflow(resamples = p_folds) |>
+    fit_model(
+      training_data = splits$train
+    )|>
+    augment_model(
+      new_data = splits$test
+    )
+
+
+out
+metric_set_en <- metric_set(accuracy, roc_auc, pr_auc)
+out |> metric_set_en(truth = y, estimate = .pred_class, `.pred_Not Chinstrap (0)`)
+cm <- out |> conf_mat(truth = y, estimate = .pred_class)
+cm
+cm |> summary()
+
+```
+
+#### NN - Regression - tuned
+
+
+
+```{r}
+data(ames, package = "modeldata")
+
+ames <- ames |>
+ mutate(Sale_Price = log10(Sale_Price)) |> # deal with skewness in data by taking logs, this is now our response
+ drop_na() # drop missing values
+
+
+splits <-
+  ames |>
+    make_data_split(train = 0.8)
+
+p_folds <- 
+  splits$train |>
+    make_vfold_cv()
+
+out <-
+  splits$train |>
+    make_recipe_addpred(
+      outcome = Sale_Price,
+      # id_vars = c("island", "flipper_length_mm", "sex", "species", "body_mass_g")
+      preds = c("Gr_Liv_Area", "Year_Built", "Longitude", "Latitude")
+    ) |>
+    make_workflow(
+      model = make_nn_reg_model_v2() 
+    ) |>
+    get_nn_reg_finalized_workflow_v2(resamples = p_folds) |>
+    fit_model(
+      training_data = splits$train
+    )|>
+    augment_model(
+      new_data = splits$test
+    )
+
+out
+```
+```{r}
+metric_set_en <- metric_set(mse, rsq)
+out |> metric_set_en(truth = Sale_Price, estimate = .pred)
+
+
+```
+
