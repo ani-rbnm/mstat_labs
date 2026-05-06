@@ -23,6 +23,7 @@ library(rpart.plot)
 library(kernlab)
 library(nnet)
 library(janitor)
+library(xgboost)
 library(fairml)
 library(ISLR2)
 ```
@@ -907,6 +908,7 @@ get_nn_reg_finalized_workflow_v2 <- function(workflow,
 ```{r}
 get_xgboost_finalized_workflow <- function(workflow,
                                            resamples,
+                                           training_data,
                                            tree_depth_min = 2,
                                            tree_depth_max = 8,
                                            learn_rate_min = -3,
@@ -916,11 +918,11 @@ get_xgboost_finalized_workflow <- function(workflow,
                                            grid_size = 10,
                                            metric = "rsq") {
 
-  param_grid <- grid_latin_hypercube(
+  param_grid <- grid_space_filling(
     tree_depth(range = c(tree_depth_min, tree_depth_max)),
     learn_rate(range = c(learn_rate_min, learn_rate_max)),
     min_n(range = c(min_n_min, min_n_max)),
-    finalize(mtry(), workflow |> extract_mold() |> purrr::pluck("predictors")),
+    finalize(mtry(), training_data),
     size = grid_size
   )
 
@@ -1053,45 +1055,6 @@ write_augmented_csv <- function(data,
 
 ### Full Workflows
 
-#### 1. lm model
-
-
-```{r}
-library(palmerpenguins)
-data("penguins", package = "palmerpenguins")
-head(penguins) |>
-kable()
-
-splits <-
-  penguins |>
-    make_data_split(train = 0.6)
-head(splits$train)
-out <-
-  splits$train |>
-    make_recipe(
-      outcome = body_mass_g,
-      id_vars = c("island", "sex", "year")
-    ) |>
-    make_workflow(
-      model = make_lm_model()
-    ) |>
-    fit_model(
-      training_data = splits$train
-    ) |>
-    augment_model(
-      new_data = splits$test
-    )
-
-out |>
-  write_augmented_csv(
-    file_path = "test.csv",
-    cols = ".pred",
-    col_names = "result"
-  )
-  
-
-```
-
 #### 2. glm - elasticnet with tuning - Custom Recipe
 
 
@@ -1132,336 +1095,20 @@ out |> rmse(Sale_Price, .pred)
 
 ```
 
-#### 3. logistic_reg model - Not tuned
+
+#### XGBoost
+
 
 ```{r}
-data(german.credit, package = "fairml")
-gcredit <- as_tibble(german.credit)
+q2_train <- read_csv("cwk2_q2_train_data.csv")
+q2_test <- read_csv("cwk2_q2_test_data.csv")
+glimpse(q2_train)
+```
+
+```{r}
 
 splits <-
-  gcredit |>
-    make_data_split(train = 0.8, strata = Credit_risk)
-
-out <-
-  splits$train |>
-    make_recipe(
-      outcome = Credit_risk,
-      # id_vars = c("island", "sex", "year")
-    ) |>
-    make_workflow(
-      model = logistic_reg() 
-    ) |>
-    fit_model(
-      training_data = splits$train
-    ) |>
-    augment_model(
-      new_data = splits$test
-    )
-
-glimpse(out)
-```
-###### Confusion matrix
-
-
-```{r}
-gcredit_cm <-
-  out |>
-    conf_mat(Credit_risk, .pred_class)
-gcredit_cm
-gcredit_cm |> summary()
-
-```
-
-#### 3. logistic_reg model - tuned
-
-```{r}
-data(german.credit, package = "fairml")
-gcredit <- as_tibble(german.credit)
-
-splits <-
-  gcredit |>
-    make_data_split(train = 0.8, strata = Credit_risk)
-
-gcredit_folds <- 
-  splits$train |>
-    make_vfold_cv(strata = Credit_risk)
-
-out <-
-  splits$train |>
-    make_recipe(
-      outcome = Credit_risk,
-    ) |>
-    make_workflow(
-      model = make_logistic_model() 
-    ) |>
-    get_logistic_finalized_workflow(
-      resamples = gcredit_folds
-    ) |>
-    fit_model(
-      training_data = splits$train
-    ) |>
-    augment_model(
-      new_data = splits$test
-    )
-
-```
-Testing metrics
-
-```{r}
-
-metric_set_en <- metric_set(accuracy, roc_auc, pr_auc)
-out |> metric_set_en(Credit_risk, estimate = .pred_class, .pred_BAD )
-levels(gcredit$Credit_risk)
-```
-#### 4. LDA/QDA
-
-
-```{r}
-data(german.credit, package = "fairml")
-gcredit <- as_tibble(german.credit)
-
-splits <-
-  gcredit |>
-    make_data_split(train = 0.8, strata = Credit_risk)
-
-out <-
-  splits$train |>
-    make_recipe(
-      outcome = Credit_risk,
-      id_vars = c("Account_status", "Credit_history", "Purpose", "Savings_bonds", 
-        "Present_employment_since", "Other_debtors_guarantors", "Property",
-        "Other_installment_plans", "Housing", "Job", "Telephone", "Foreign_worker",
-      "Gender")
-    ) |>
-    make_workflow(
-      model = make_qda() 
-    ) |>
-    fit_model(
-      training_data = splits$train
-    ) |>
-    augment_model(
-      new_data = splits$test
-    )
-
-```
-```{r}
-
-metric_set_en <- metric_set(accuracy, roc_auc, pr_auc)
-out |> metric_set_en(Credit_risk, estimate = .pred_class, .pred_BAD )
-cm <- out |> conf_mat(truth = Credit_risk, estimate = .pred_class)
-cm
-cm |> summary()
-```
-
-#### 5. Decision Tree - Classification
-
-
-```{r}
-penguins <- penguins |> drop_na()
-
-splits <-
-  penguins |>
-    make_data_split(train = 0.6, strata = species)
-
-# gcredit_folds <- 
-  # splits$train |>
-    # make_vfold_cv(strata = Credit_risk)
-
-out_fit <-
-  splits$train |>
-    make_tree_recipe(
-      outcome = species,
-      id_vars = c("island", "flipper_length_mm", "sex")
-    ) |>
-    make_workflow(
-      model = make_class_tree() 
-    ) |>
-    fit_model(
-      training_data = splits$train
-    )
-penguin_rpart <- out_fit |> extract_fit_engine()
-penguin_rpart |> print()
-penguin_rpart |> rpart.plot()
-
-out <-
-  splits$train |>
-    make_tree_recipe(
-      outcome = species,
-      id_vars = c("island", "flipper_length_mm", "sex")
-    ) |>
-    make_workflow(
-      model = make_class_tree() 
-    ) |>
-    # get_logistic_finalized_workflow(
-      # resamples = gcredit_folds
-    # ) |>
-    fit_model(
-      training_data = splits$train
-    ) |>
-    augment_model(
-      new_data = splits$test
-    )
-
-out
-metric_set_en <- metric_set(accuracy, roc_auc, pr_auc)
-out |> metric_set_en(species, estimate = .pred_class, .pred_Adelie, .pred_Chinstrap, .pred_Gentoo)
-cm <- out |> conf_mat(truth = species, estimate = .pred_class)
-cm
-cm |> summary()
-
-```
-#### Decision Tree - Pruned regression
-
-
-```{r}
-data("Hitters", package = "ISLR2")
-hitters <-
- Hitters |> drop_na() |>
-    mutate(Salary = log10(Salary)) |>
-    tibble()
-
-splits <-
-  hitters |>
-    make_data_split(train = 0.8)
-
-hitters_folds <- 
-  splits$train |>
-    make_vfold_cv()
-
-
-out <-
-  splits$train |>
-    make_tree_recipe(
-      outcome = Salary
-    ) |>
-    make_workflow(
-      model = make_reg_tree()
-    ) |>
-    get_pruned_tree_finalized_workflow(resamples = hitters_folds) |>
-    fit_model(
-      training_data = splits$train
-    ) |>
-    augment_model(
-      new_data = splits$test
-    )
-
-out |> rmse(truth = Salary, estimate = .pred)
-```
-
-#### Linear SVM - Classification - tuned
-
-
-```{r}
-penguins <- penguins |>
- drop_na() |>
- mutate(
-  y = case_when(
-   species == "Gentoo" ~ "Gentoo (1)",
-   .default = "Not Gentoo (0)",
-   .ptype = factor(levels = c("Not Gentoo (0)", "Gentoo (1)"))
-  ) 
- )
-
-splits <-
-  penguins |>
-    make_data_split(train = 0.8, strata = y)
-
-p_folds <- 
-  splits$train |>
-    make_vfold_cv(strata = y)
-
-out <-
-  splits$train |>
-    make_recipe(
-      outcome = y,
-      id_vars = c("island", "flipper_length_mm", "sex", "species", "body_mass_g")
-    ) |>
-    make_workflow(
-      model = make_linear_svm_model() 
-    ) |>
-    get_linear_svm_finalized_workflow(resamples = p_folds) |>
-    fit_model(
-      training_data = splits$train
-    )|>
-    augment_model(
-      new_data = splits$test
-    )
-
-```
-
-```{r}
-out
-metric_set_en <- metric_set(accuracy, roc_auc, pr_auc)
-out |> metric_set_en(truth = y, estimate = .pred_class, `.pred_Not Gentoo (0)`)
-cm <- out |> conf_mat(truth = y, estimate = .pred_class)
-cm
-cm |> summary()
-
-
-```
-#### Non Linear SVM - Classification - tuned
-
-```{r}
-penguins <- penguins |>
- drop_na() |>
- mutate(
-  y = case_when(
-   species == "Chinstrap" ~ "Chinstrap (1)",
-   .default = "Not Chinstrap (0)",
-   .ptype = factor(levels = c("Not Chinstrap (0)", "Chinstrap (1)"))
-  ) 
-)
-
-
-splits <-
-  penguins |>
-    make_data_split(train = 0.8, strata = y)
-
-p_folds <- 
-  splits$train |>
-    make_vfold_cv(strata = y)
-
-out <-
-  splits$train |>
-    make_recipe(
-      outcome = y,
-      id_vars = c("island", "flipper_length_mm", "sex", "species", "body_mass_g")
-    ) |>
-    make_workflow(
-      model = make_rbf_svm_model() 
-    ) |>
-    get_nonlinear_svm_finalized_workflow(resamples = p_folds) |>
-    fit_model(
-      training_data = splits$train
-    )|>
-    augment_model(
-      new_data = splits$test
-    )
-
-
-out
-metric_set_en <- metric_set(accuracy, roc_auc, pr_auc)
-out |> metric_set_en(truth = y, estimate = .pred_class, `.pred_Not Chinstrap (0)`)
-cm <- out |> conf_mat(truth = y, estimate = .pred_class)
-cm
-cm |> summary()
-
-```
-
-#### NN - Regression - tuned
-
-
-
-```{r}
-data(ames, package = "modeldata")
-
-ames <- ames |>
- mutate(Sale_Price = log10(Sale_Price)) |> # deal with skewness in data by taking logs, this is now our response
- drop_na() # drop missing values
-
-
-splits <-
-  ames |>
+  q2_train |>
     make_data_split(train = 0.8)
 
 p_folds <- 
@@ -1471,14 +1118,17 @@ p_folds <-
 out <-
   splits$train |>
     make_recipe_addpred(
-      outcome = Sale_Price,
+      outcome = target
       # id_vars = c("island", "flipper_length_mm", "sex", "species", "body_mass_g")
-      preds = c("Gr_Liv_Area", "Year_Built", "Longitude", "Latitude")
+      # preds = c("Gr_Liv_Area", "Year_Built", "Longitude", "Latitude")
     ) |>
     make_workflow(
-      model = make_nn_reg_model_v2() 
+      model = make_xgboost_model() 
     ) |>
-    get_nn_reg_finalized_workflow_v2(resamples = p_folds) |>
+    get_xgboost_finalized_workflow(
+      resamples = p_folds,
+      training_data = splits$train
+    ) |>
     fit_model(
       training_data = splits$train
     )|>
@@ -1490,48 +1140,9 @@ out
 ```
 ```{r}
 metric_set_en <- metric_set(mse, rsq)
-out |> metric_set_en(truth = Sale_Price, estimate = .pred)
+out |> metric_set_en(truth = target, estimate = .pred)
 
 
 ```
 
-#### XGBoost
-
-
-```{r}
-data(ames, package = "modeldata")
-
-ames <- ames |>
- mutate(Sale_Price = log10(Sale_Price)) |> # deal with skewness in data by taking logs, this is now our response
- drop_na() # drop missing values
-
-
-splits <-
-  ames |>
-    make_data_split(train = 0.8)
-
-p_folds <- 
-  splits$train |>
-    make_vfold_cv()
-
-out <-
-  splits$train |>
-    make_recipe_addpred(
-      outcome = Sale_Price,
-      # id_vars = c("island", "flipper_length_mm", "sex", "species", "body_mass_g")
-      preds = c("Gr_Liv_Area", "Year_Built", "Longitude", "Latitude")
-    ) |>
-    make_workflow(
-      model = make_nn_reg_model_v2() 
-    ) |>
-    get_nn_reg_finalized_workflow_v2(resamples = p_folds) |>
-    fit_model(
-      training_data = splits$train
-    )|>
-    augment_model(
-      new_data = splits$test
-    )
-
-out
-```
 
